@@ -1,17 +1,29 @@
 scalar Time
 
-type User {
+directive @goModel(model: String, models: [String!]) on OBJECT
+  | INPUT_OBJECT
+  | SCALAR
+  | ENUM
+  | INTERFACE
+  | UNION
+
+directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
+  | FIELD_DEFINITION
+
+type User @goModel(model: "github.com/nebisin/gograph/db.User") {
   id: ID!
   email: String!
-  password: String!
+  displayName: String
+  tweets (limit: Int = 10, page: Int = 1): [Tweet!]! @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
 }
 
-type Tweet {
+type Tweet @goModel(model: "github.com/nebisin/gograph/db.Tweet") {
   id: ID!
   content: String!
-  author: User!
+  authorId: ID!
+  author: User! @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
 }
@@ -19,14 +31,15 @@ type Tweet {
 type Query {
   getTweet(id: ID!): Tweet!
   listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
+  getUser(id: ID!): User!
 }
 
-input CreateTweetParams {
+input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
   content: String!
   authorId: ID!
 }
 
-input UpdateTweetParams {
+input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
   content: String!
 }
 

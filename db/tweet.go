@@ -2,31 +2,40 @@ package db
 
 import (
 	"context"
-	"github.com/nebisin/gograph/graph/model"
+	"errors"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"log"
 	"time"
 )
 
-func (r Repository) CreateTweet(ctx context.Context, args model.CreateTweetParams) (model.Tweet, error) {
+type CreateTweetParams struct {
+	Content  string             `json:"content"`
+	AuthorID primitive.ObjectID `json:"authorId"`
+}
+
+func (r Repository) CreateTweet(ctx context.Context, args CreateTweetParams) (Tweet, error) {
 	tweetCollection := r.db.Collection("tweet")
 
 	timestamp := time.Now()
 
 	document := bson.D{
 		{"content", args.Content},
-		{"authorId", args.AuthorID},
-		{"createdAt", timestamp},
-		{"updatedAt", timestamp},
+		{"author_id", args.AuthorID},
+		{"created_at", timestamp},
+		{"updated_at", timestamp},
 	}
 	result, err := tweetCollection.InsertOne(ctx, document)
 	if err != nil {
-		return model.Tweet{}, err
+		log.Println(err)
+		return Tweet{}, errors.New("something went wrong")
 	}
 
-	newTweet := model.Tweet{
+	newTweet := Tweet{
 		ID:        result.InsertedID.(primitive.ObjectID),
 		Content:   args.Content,
+		AuthorId:  args.AuthorID,
 		CreatedAt: timestamp,
 		UpdatedAt: timestamp,
 	}
@@ -34,16 +43,22 @@ func (r Repository) CreateTweet(ctx context.Context, args model.CreateTweetParam
 	return newTweet, nil
 }
 
-func (r Repository) GetTweet(ctx context.Context, id primitive.ObjectID) (model.Tweet, error) {
+func (r Repository) GetTweet(ctx context.Context, id primitive.ObjectID) (Tweet, error) {
 	tweetCollection := r.db.Collection("tweet")
 
-	var tweet model.Tweet
+	var tweet Tweet
 	err := tweetCollection.FindOne(ctx, bson.D{{"_id", id}}).Decode(&tweet)
 	if err != nil {
-		return model.Tweet{}, err
+		if err == mongo.ErrNoDocuments {
+			return Tweet{}, errors.New("the tweet with id " + id.Hex() + " could not found")
+		}
+		log.Println(err)
+		return Tweet{}, errors.New("something went wrong")
 	}
 
-	tweet.ID = id
-
 	return tweet, nil
+}
+
+type UpdateTweetParams struct {
+	Content string `json:"content"`
 }

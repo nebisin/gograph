@@ -14,7 +14,6 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/nebisin/gograph/db"
-	"github.com/nebisin/gograph/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -40,6 +39,8 @@ type Config struct {
 type ResolverRoot interface {
 	Mutation() MutationResolver
 	Query() QueryResolver
+	Tweet() TweetResolver
+	User() UserResolver
 }
 
 type DirectiveRoot struct {
@@ -47,18 +48,20 @@ type DirectiveRoot struct {
 
 type ComplexityRoot struct {
 	Mutation struct {
-		CreateTweet func(childComplexity int, input model.CreateTweetParams) int
+		CreateTweet func(childComplexity int, input db.CreateTweetParams) int
 		DeleteTweet func(childComplexity int, id primitive.ObjectID) int
-		UpdateTweet func(childComplexity int, input model.UpdateTweetParams) int
+		UpdateTweet func(childComplexity int, input db.UpdateTweetParams) int
 	}
 
 	Query struct {
 		GetTweet  func(childComplexity int, id primitive.ObjectID) int
+		GetUser   func(childComplexity int, id primitive.ObjectID) int
 		ListTweet func(childComplexity int, limit *int, page *int) int
 	}
 
 	Tweet struct {
 		Author    func(childComplexity int) int
+		AuthorId  func(childComplexity int) int
 		Content   func(childComplexity int) int
 		CreatedAt func(childComplexity int) int
 		ID        func(childComplexity int) int
@@ -66,22 +69,30 @@ type ComplexityRoot struct {
 	}
 
 	User struct {
-		CreatedAt func(childComplexity int) int
-		Email     func(childComplexity int) int
-		ID        func(childComplexity int) int
-		Password  func(childComplexity int) int
-		UpdatedAt func(childComplexity int) int
+		CreatedAt   func(childComplexity int) int
+		DisplayName func(childComplexity int) int
+		Email       func(childComplexity int) int
+		ID          func(childComplexity int) int
+		Tweets      func(childComplexity int, limit *int, page *int) int
+		UpdatedAt   func(childComplexity int) int
 	}
 }
 
 type MutationResolver interface {
-	CreateTweet(ctx context.Context, input model.CreateTweetParams) (*model.Tweet, error)
-	UpdateTweet(ctx context.Context, input model.UpdateTweetParams) (*model.Tweet, error)
+	CreateTweet(ctx context.Context, input db.CreateTweetParams) (*db.Tweet, error)
+	UpdateTweet(ctx context.Context, input db.UpdateTweetParams) (*db.Tweet, error)
 	DeleteTweet(ctx context.Context, id primitive.ObjectID) (bool, error)
 }
 type QueryResolver interface {
-	GetTweet(ctx context.Context, id primitive.ObjectID) (*model.Tweet, error)
-	ListTweet(ctx context.Context, limit *int, page *int) ([]*model.Tweet, error)
+	GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error)
+	ListTweet(ctx context.Context, limit *int, page *int) ([]*db.Tweet, error)
+	GetUser(ctx context.Context, id primitive.ObjectID) (*db.User, error)
+}
+type TweetResolver interface {
+	Author(ctx context.Context, obj *db.Tweet) (*db.User, error)
+}
+type UserResolver interface {
+	Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]*db.Tweet, error)
 }
 
 type executableSchema struct {
@@ -109,7 +120,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateTweet(childComplexity, args["input"].(model.CreateTweetParams)), true
+		return e.complexity.Mutation.CreateTweet(childComplexity, args["input"].(db.CreateTweetParams)), true
 
 	case "Mutation.deleteTweet":
 		if e.complexity.Mutation.DeleteTweet == nil {
@@ -133,7 +144,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.UpdateTweet(childComplexity, args["input"].(model.UpdateTweetParams)), true
+		return e.complexity.Mutation.UpdateTweet(childComplexity, args["input"].(db.UpdateTweetParams)), true
 
 	case "Query.getTweet":
 		if e.complexity.Query.GetTweet == nil {
@@ -146,6 +157,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.GetTweet(childComplexity, args["id"].(primitive.ObjectID)), true
+
+	case "Query.getUser":
+		if e.complexity.Query.GetUser == nil {
+			break
+		}
+
+		args, err := ec.field_Query_getUser_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Query.GetUser(childComplexity, args["id"].(primitive.ObjectID)), true
 
 	case "Query.listTweet":
 		if e.complexity.Query.ListTweet == nil {
@@ -165,6 +188,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Tweet.Author(childComplexity), true
+
+	case "Tweet.authorId":
+		if e.complexity.Tweet.AuthorId == nil {
+			break
+		}
+
+		return e.complexity.Tweet.AuthorId(childComplexity), true
 
 	case "Tweet.content":
 		if e.complexity.Tweet.Content == nil {
@@ -201,6 +231,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.CreatedAt(childComplexity), true
 
+	case "User.displayName":
+		if e.complexity.User.DisplayName == nil {
+			break
+		}
+
+		return e.complexity.User.DisplayName(childComplexity), true
+
 	case "User.email":
 		if e.complexity.User.Email == nil {
 			break
@@ -215,12 +252,17 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.User.ID(childComplexity), true
 
-	case "User.password":
-		if e.complexity.User.Password == nil {
+	case "User.tweets":
+		if e.complexity.User.Tweets == nil {
 			break
 		}
 
-		return e.complexity.User.Password(childComplexity), true
+		args, err := ec.field_User_tweets_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.User.Tweets(childComplexity, args["limit"].(*int), args["page"].(*int)), true
 
 	case "User.updatedAt":
 		if e.complexity.User.UpdatedAt == nil {
@@ -295,18 +337,30 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 var sources = []*ast.Source{
 	{Name: "graph/schema.graphqls", Input: `scalar Time
 
-type User {
+directive @goModel(model: String, models: [String!]) on OBJECT
+  | INPUT_OBJECT
+  | SCALAR
+  | ENUM
+  | INTERFACE
+  | UNION
+
+directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
+  | FIELD_DEFINITION
+
+type User @goModel(model: "github.com/nebisin/gograph/db.User") {
   id: ID!
   email: String!
-  password: String!
+  displayName: String
+  tweets (limit: Int = 10, page: Int = 1): [Tweet!]! @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
 }
 
-type Tweet {
+type Tweet @goModel(model: "github.com/nebisin/gograph/db.Tweet") {
   id: ID!
   content: String!
-  author: User!
+  authorId: ID!
+  author: User! @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
 }
@@ -314,14 +368,15 @@ type Tweet {
 type Query {
   getTweet(id: ID!): Tweet!
   listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
+  getUser(id: ID!): User!
 }
 
-input CreateTweetParams {
+input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
   content: String!
   authorId: ID!
 }
 
-input UpdateTweetParams {
+input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
   content: String!
 }
 
@@ -340,10 +395,10 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_createTweet_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 model.CreateTweetParams
+	var arg0 db.CreateTweetParams
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNCreateTweetParams2githubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐCreateTweetParams(ctx, tmp)
+		arg0, err = ec.unmarshalNCreateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐCreateTweetParams(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -370,10 +425,10 @@ func (ec *executionContext) field_Mutation_deleteTweet_args(ctx context.Context,
 func (ec *executionContext) field_Mutation_updateTweet_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 model.UpdateTweetParams
+	var arg0 db.UpdateTweetParams
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNUpdateTweetParams2githubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐUpdateTweetParams(ctx, tmp)
+		arg0, err = ec.unmarshalNUpdateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐUpdateTweetParams(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -412,7 +467,46 @@ func (ec *executionContext) field_Query_getTweet_args(ctx context.Context, rawAr
 	return args, nil
 }
 
+func (ec *executionContext) field_Query_getUser_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 primitive.ObjectID
+	if tmp, ok := rawArgs["id"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+		arg0, err = ec.unmarshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["id"] = arg0
+	return args, nil
+}
+
 func (ec *executionContext) field_Query_listTweet_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 *int
+	if tmp, ok := rawArgs["limit"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("limit"))
+		arg0, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["limit"] = arg0
+	var arg1 *int
+	if tmp, ok := rawArgs["page"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("page"))
+		arg1, err = ec.unmarshalOInt2ᚖint(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["page"] = arg1
+	return args, nil
+}
+
+func (ec *executionContext) field_User_tweets_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
 	var arg0 *int
@@ -499,7 +593,7 @@ func (ec *executionContext) _Mutation_createTweet(ctx context.Context, field gra
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateTweet(rctx, args["input"].(model.CreateTweetParams))
+		return ec.resolvers.Mutation().CreateTweet(rctx, args["input"].(db.CreateTweetParams))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -511,9 +605,9 @@ func (ec *executionContext) _Mutation_createTweet(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Tweet)
+	res := resTmp.(*db.Tweet)
 	fc.Result = res
-	return ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweet(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_updateTweet(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -541,7 +635,7 @@ func (ec *executionContext) _Mutation_updateTweet(ctx context.Context, field gra
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().UpdateTweet(rctx, args["input"].(model.UpdateTweetParams))
+		return ec.resolvers.Mutation().UpdateTweet(rctx, args["input"].(db.UpdateTweetParams))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -553,9 +647,9 @@ func (ec *executionContext) _Mutation_updateTweet(ctx context.Context, field gra
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Tweet)
+	res := resTmp.(*db.Tweet)
 	fc.Result = res
-	return ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweet(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_deleteTweet(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -637,9 +731,9 @@ func (ec *executionContext) _Query_getTweet(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.Tweet)
+	res := resTmp.(*db.Tweet)
 	fc.Result = res
-	return ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweet(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_listTweet(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -679,9 +773,51 @@ func (ec *executionContext) _Query_listTweet(ctx context.Context, field graphql.
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*model.Tweet)
+	res := resTmp.([]*db.Tweet)
 	fc.Result = res
-	return ec.marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweetᚄ(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_getUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Query_getUser_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().GetUser(rctx, args["id"].(primitive.ObjectID))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*db.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query___type(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -755,7 +891,7 @@ func (ec *executionContext) _Query___schema(ctx context.Context, field graphql.C
 	return ec.marshalO__Schema2ᚖgithubᚗcomᚋ99designsᚋgqlgenᚋgraphqlᚋintrospectionᚐSchema(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Tweet_id(ctx context.Context, field graphql.CollectedField, obj *model.Tweet) (ret graphql.Marshaler) {
+func (ec *executionContext) _Tweet_id(ctx context.Context, field graphql.CollectedField, obj *db.Tweet) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -790,7 +926,7 @@ func (ec *executionContext) _Tweet_id(ctx context.Context, field graphql.Collect
 	return ec.marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Tweet_content(ctx context.Context, field graphql.CollectedField, obj *model.Tweet) (ret graphql.Marshaler) {
+func (ec *executionContext) _Tweet_content(ctx context.Context, field graphql.CollectedField, obj *db.Tweet) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -825,7 +961,7 @@ func (ec *executionContext) _Tweet_content(ctx context.Context, field graphql.Co
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Tweet_author(ctx context.Context, field graphql.CollectedField, obj *model.Tweet) (ret graphql.Marshaler) {
+func (ec *executionContext) _Tweet_authorId(ctx context.Context, field graphql.CollectedField, obj *db.Tweet) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -843,7 +979,7 @@ func (ec *executionContext) _Tweet_author(ctx context.Context, field graphql.Col
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Author, nil
+		return obj.AuthorId, nil
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -855,12 +991,47 @@ func (ec *executionContext) _Tweet_author(ctx context.Context, field graphql.Col
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*model.User)
+	res := resTmp.(primitive.ObjectID)
 	fc.Result = res
-	return ec.marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐUser(ctx, field.Selections, res)
+	return ec.marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Tweet_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.Tweet) (ret graphql.Marshaler) {
+func (ec *executionContext) _Tweet_author(ctx context.Context, field graphql.CollectedField, obj *db.Tweet) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Tweet",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Tweet().Author(rctx, obj)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*db.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Tweet_createdAt(ctx context.Context, field graphql.CollectedField, obj *db.Tweet) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -895,7 +1066,7 @@ func (ec *executionContext) _Tweet_createdAt(ctx context.Context, field graphql.
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _Tweet_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.Tweet) (ret graphql.Marshaler) {
+func (ec *executionContext) _Tweet_updatedAt(ctx context.Context, field graphql.CollectedField, obj *db.Tweet) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -930,7 +1101,7 @@ func (ec *executionContext) _Tweet_updatedAt(ctx context.Context, field graphql.
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_id(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -965,7 +1136,7 @@ func (ec *executionContext) _User_id(ctx context.Context, field graphql.Collecte
 	return ec.marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_email(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1000,7 +1171,7 @@ func (ec *executionContext) _User_email(ctx context.Context, field graphql.Colle
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_password(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_displayName(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1018,7 +1189,46 @@ func (ec *executionContext) _User_password(ctx context.Context, field graphql.Co
 	ctx = graphql.WithFieldContext(ctx, fc)
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return obj.Password, nil
+		return obj.DisplayName, nil
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		return graphql.Null
+	}
+	res := resTmp.(string)
+	fc.Result = res
+	return ec.marshalOString2string(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _User_tweets(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "User",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_User_tweets_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.User().Tweets(rctx, obj, args["limit"].(*int), args["page"].(*int))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -1030,12 +1240,12 @@ func (ec *executionContext) _User_password(ctx context.Context, field graphql.Co
 		}
 		return graphql.Null
 	}
-	res := resTmp.(string)
+	res := resTmp.([]*db.Tweet)
 	fc.Result = res
-	return ec.marshalNString2string(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -1070,7 +1280,7 @@ func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.C
 	return ec.marshalNTime2timeᚐTime(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.CollectedField, obj *model.User) (ret graphql.Marshaler) {
+func (ec *executionContext) _User_updatedAt(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -2192,8 +2402,8 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputCreateTweetParams(ctx context.Context, obj interface{}) (model.CreateTweetParams, error) {
-	var it model.CreateTweetParams
+func (ec *executionContext) unmarshalInputCreateTweetParams(ctx context.Context, obj interface{}) (db.CreateTweetParams, error) {
+	var it db.CreateTweetParams
 	var asMap = obj.(map[string]interface{})
 
 	for k, v := range asMap {
@@ -2220,8 +2430,8 @@ func (ec *executionContext) unmarshalInputCreateTweetParams(ctx context.Context,
 	return it, nil
 }
 
-func (ec *executionContext) unmarshalInputUpdateTweetParams(ctx context.Context, obj interface{}) (model.UpdateTweetParams, error) {
-	var it model.UpdateTweetParams
+func (ec *executionContext) unmarshalInputUpdateTweetParams(ctx context.Context, obj interface{}) (db.UpdateTweetParams, error) {
+	var it db.UpdateTweetParams
 	var asMap = obj.(map[string]interface{})
 
 	for k, v := range asMap {
@@ -2332,6 +2542,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 				}
 				return res
 			})
+		case "getUser":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_getUser(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "__type":
 			out.Values[i] = ec._Query___type(ctx, field)
 		case "__schema":
@@ -2349,7 +2573,7 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 
 var tweetImplementors = []string{"Tweet"}
 
-func (ec *executionContext) _Tweet(ctx context.Context, sel ast.SelectionSet, obj *model.Tweet) graphql.Marshaler {
+func (ec *executionContext) _Tweet(ctx context.Context, sel ast.SelectionSet, obj *db.Tweet) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, tweetImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -2361,27 +2585,41 @@ func (ec *executionContext) _Tweet(ctx context.Context, sel ast.SelectionSet, ob
 		case "id":
 			out.Values[i] = ec._Tweet_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "content":
 			out.Values[i] = ec._Tweet_content(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
+			}
+		case "authorId":
+			out.Values[i] = ec._Tweet_authorId(ctx, field, obj)
+			if out.Values[i] == graphql.Null {
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "author":
-			out.Values[i] = ec._Tweet_author(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Tweet_author(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "createdAt":
 			out.Values[i] = ec._Tweet_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._Tweet_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -2396,7 +2634,7 @@ func (ec *executionContext) _Tweet(ctx context.Context, sel ast.SelectionSet, ob
 
 var userImplementors = []string{"User"}
 
-func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *model.User) graphql.Marshaler {
+func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj *db.User) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, userImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -2408,27 +2646,38 @@ func (ec *executionContext) _User(ctx context.Context, sel ast.SelectionSet, obj
 		case "id":
 			out.Values[i] = ec._User_id(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "email":
 			out.Values[i] = ec._User_email(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
-		case "password":
-			out.Values[i] = ec._User_password(ctx, field, obj)
-			if out.Values[i] == graphql.Null {
-				invalids++
-			}
+		case "displayName":
+			out.Values[i] = ec._User_displayName(ctx, field, obj)
+		case "tweets":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._User_tweets(ctx, field, obj)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
 		case "createdAt":
 			out.Values[i] = ec._User_createdAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		case "updatedAt":
 			out.Values[i] = ec._User_updatedAt(ctx, field, obj)
 			if out.Values[i] == graphql.Null {
-				invalids++
+				atomic.AddUint32(&invalids, 1)
 			}
 		default:
 			panic("unknown field " + strconv.Quote(field.Name))
@@ -2701,7 +2950,7 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 	return res
 }
 
-func (ec *executionContext) unmarshalNCreateTweetParams2githubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐCreateTweetParams(ctx context.Context, v interface{}) (model.CreateTweetParams, error) {
+func (ec *executionContext) unmarshalNCreateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐCreateTweetParams(ctx context.Context, v interface{}) (db.CreateTweetParams, error) {
 	res, err := ec.unmarshalInputCreateTweetParams(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
@@ -2751,11 +3000,11 @@ func (ec *executionContext) marshalNTime2timeᚐTime(ctx context.Context, sel as
 	return res
 }
 
-func (ec *executionContext) marshalNTweet2githubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweet(ctx context.Context, sel ast.SelectionSet, v model.Tweet) graphql.Marshaler {
+func (ec *executionContext) marshalNTweet2githubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx context.Context, sel ast.SelectionSet, v db.Tweet) graphql.Marshaler {
 	return ec._Tweet(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweetᚄ(ctx context.Context, sel ast.SelectionSet, v []*model.Tweet) graphql.Marshaler {
+func (ec *executionContext) marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx context.Context, sel ast.SelectionSet, v []*db.Tweet) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -2779,7 +3028,7 @@ func (ec *executionContext) marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgograph
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweet(ctx, sel, v[i])
+			ret[i] = ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
@@ -2792,7 +3041,7 @@ func (ec *executionContext) marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgograph
 	return ret
 }
 
-func (ec *executionContext) marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐTweet(ctx context.Context, sel ast.SelectionSet, v *model.Tweet) graphql.Marshaler {
+func (ec *executionContext) marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx context.Context, sel ast.SelectionSet, v *db.Tweet) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -2802,12 +3051,16 @@ func (ec *executionContext) marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋ
 	return ec._Tweet(ctx, sel, v)
 }
 
-func (ec *executionContext) unmarshalNUpdateTweetParams2githubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐUpdateTweetParams(ctx context.Context, v interface{}) (model.UpdateTweetParams, error) {
+func (ec *executionContext) unmarshalNUpdateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐUpdateTweetParams(ctx context.Context, v interface{}) (db.UpdateTweetParams, error) {
 	res, err := ec.unmarshalInputUpdateTweetParams(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 
-func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐUser(ctx context.Context, sel ast.SelectionSet, v *model.User) graphql.Marshaler {
+func (ec *executionContext) marshalNUser2githubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx context.Context, sel ast.SelectionSet, v db.User) graphql.Marshaler {
+	return ec._User(ctx, sel, &v)
+}
+
+func (ec *executionContext) marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx context.Context, sel ast.SelectionSet, v *db.User) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -3092,6 +3345,42 @@ func (ec *executionContext) unmarshalOString2string(ctx context.Context, v inter
 
 func (ec *executionContext) marshalOString2string(ctx context.Context, sel ast.SelectionSet, v string) graphql.Marshaler {
 	return graphql.MarshalString(v)
+}
+
+func (ec *executionContext) unmarshalOString2ᚕstringᚄ(ctx context.Context, v interface{}) ([]string, error) {
+	if v == nil {
+		return nil, nil
+	}
+	var vSlice []interface{}
+	if v != nil {
+		if tmp1, ok := v.([]interface{}); ok {
+			vSlice = tmp1
+		} else {
+			vSlice = []interface{}{v}
+		}
+	}
+	var err error
+	res := make([]string, len(vSlice))
+	for i := range vSlice {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithIndex(i))
+		res[i], err = ec.unmarshalNString2string(ctx, vSlice[i])
+		if err != nil {
+			return nil, err
+		}
+	}
+	return res, nil
+}
+
+func (ec *executionContext) marshalOString2ᚕstringᚄ(ctx context.Context, sel ast.SelectionSet, v []string) graphql.Marshaler {
+	if v == nil {
+		return graphql.Null
+	}
+	ret := make(graphql.Array, len(v))
+	for i := range v {
+		ret[i] = ec.marshalNString2string(ctx, sel, v[i])
+	}
+
+	return ret
 }
 
 func (ec *executionContext) unmarshalOString2ᚖstring(ctx context.Context, v interface{}) (*string, error) {

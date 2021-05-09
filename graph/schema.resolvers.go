@@ -6,14 +6,14 @@ package graph
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
-	"github.com/nebisin/gograph/graph/model"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (r *mutationResolver) CreateTweet(ctx context.Context, input model.CreateTweetParams) (*model.Tweet, error) {
+func (r *mutationResolver) CreateTweet(ctx context.Context, input db.CreateTweetParams) (*db.Tweet, error) {
 	repository := db.NewRepository(r.DB)
 
 	tweet, err := repository.CreateTweet(ctx, input)
@@ -24,7 +24,7 @@ func (r *mutationResolver) CreateTweet(ctx context.Context, input model.CreateTw
 	return &tweet, nil
 }
 
-func (r *mutationResolver) UpdateTweet(ctx context.Context, input model.UpdateTweetParams) (*model.Tweet, error) {
+func (r *mutationResolver) UpdateTweet(ctx context.Context, input db.UpdateTweetParams) (*db.Tweet, error) {
 	panic(fmt.Errorf("not implemented"))
 }
 
@@ -32,7 +32,7 @@ func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectI
 	panic(fmt.Errorf("not implemented"))
 }
 
-func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*model.Tweet, error) {
+func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error) {
 	repository := db.NewRepository(r.DB)
 
 	tweet, err := repository.GetTweet(ctx, id)
@@ -43,7 +43,25 @@ func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*m
 	return &tweet, nil
 }
 
-func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([]*model.Tweet, error) {
+func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([]*db.Tweet, error) {
+	panic(fmt.Errorf("not implemented"))
+}
+
+func (r *queryResolver) GetUser(ctx context.Context, id primitive.ObjectID) (*db.User, error) {
+	panic(fmt.Errorf("not implemented"))
+}
+
+func (r *tweetResolver) Author(ctx context.Context, obj *db.Tweet) (*db.User, error) {
+	return &db.User{
+		ID:        obj.AuthorId,
+		Email:     "test@test.com",
+		Password:  "testpassword",
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	}, nil
+}
+
+func (r *userResolver) Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]*db.Tweet, error) {
 	panic(fmt.Errorf("not implemented"))
 }
 
@@ -53,5 +71,13 @@ func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResol
 // Query returns generated.QueryResolver implementation.
 func (r *Resolver) Query() generated.QueryResolver { return &queryResolver{r} }
 
+// Tweet returns generated.TweetResolver implementation.
+func (r *Resolver) Tweet() generated.TweetResolver { return &tweetResolver{r} }
+
+// User returns generated.UserResolver implementation.
+func (r *Resolver) User() generated.UserResolver { return &userResolver{r} }
+
 type mutationResolver struct{ *Resolver }
 type queryResolver struct{ *Resolver }
+type tweetResolver struct{ *Resolver }
+type userResolver struct{ *Resolver }
