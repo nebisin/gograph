@@ -1,0 +1,37 @@
+scalar Time
+
+type User {
+  id: ID!
+  email: String!
+  password: String!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type Tweet {
+  id: ID!
+  content: String!
+  author: User!
+  createdAt: Time!
+  updatedAt: Time!
+}
+
+type Query {
+  getTweet(id: ID!): Tweet!
+  listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
+}
+
+input CreateTweetParams {
+  content: String!
+  authorId: ID!
+}
+
+input UpdateTweetParams {
+  content: String!
+}
+
+type Mutation {
+  createTweet(input: CreateTweetParams!): Tweet!
+  updateTweet(input: UpdateTweetParams!): Tweet!
+  deleteTweet(id: ID!): Boolean!
+}
