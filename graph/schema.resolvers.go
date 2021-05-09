@@ -25,11 +25,25 @@ func (r *mutationResolver) CreateTweet(ctx context.Context, input db.CreateTweet
 }
 
 func (r *mutationResolver) UpdateTweet(ctx context.Context, input db.UpdateTweetParams) (*db.Tweet, error) {
-	panic(fmt.Errorf("not implemented"))
+	repository := db.NewRepository(r.DB)
+
+	tweet, err := repository.UpdateTweet(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &tweet, nil
 }
 
 func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectID) (bool, error) {
-	panic(fmt.Errorf("not implemented"))
+	repository := db.NewRepository(r.DB)
+
+	err := repository.DeleteTweet(ctx, id)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
 }
 
 func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error) {
@@ -43,8 +57,15 @@ func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*d
 	return &tweet, nil
 }
 
-func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([]*db.Tweet, error) {
-	panic(fmt.Errorf("not implemented"))
+func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([]db.Tweet, error) {
+	repository := db.NewRepository(r.DB)
+
+	tweets, err := repository.ListTweet(ctx, *limit, *page)
+	if err != nil {
+		return nil, err
+	}
+
+	return tweets, nil
 }
 
 func (r *queryResolver) GetUser(ctx context.Context, id primitive.ObjectID) (*db.User, error) {
@@ -61,7 +82,7 @@ func (r *tweetResolver) Author(ctx context.Context, obj *db.Tweet) (*db.User, er
 	}, nil
 }
 
-func (r *userResolver) Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]*db.Tweet, error) {
+func (r *userResolver) Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]db.Tweet, error) {
 	panic(fmt.Errorf("not implemented"))
 }
 

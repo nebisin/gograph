@@ -43,10 +43,7 @@ func Run() {
 func initServer(database *mongo.Database, port string) {
 	config := initServerConfig(database)
 
-	schema := generated.NewExecutableSchema(
-		config,
-	)
-
+	schema := generated.NewExecutableSchema(config)
 	srv := handler.NewDefaultServer(schema)
 	srv.Use(extension.FixedComplexityLimit(defaultComplexity))
 

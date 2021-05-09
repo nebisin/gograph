@@ -34,6 +34,7 @@ input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTwe
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
+  id: ID!
   content: String!
 }
 

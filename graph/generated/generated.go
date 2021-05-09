@@ -85,14 +85,14 @@ type MutationResolver interface {
 }
 type QueryResolver interface {
 	GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error)
-	ListTweet(ctx context.Context, limit *int, page *int) ([]*db.Tweet, error)
+	ListTweet(ctx context.Context, limit *int, page *int) ([]db.Tweet, error)
 	GetUser(ctx context.Context, id primitive.ObjectID) (*db.User, error)
 }
 type TweetResolver interface {
 	Author(ctx context.Context, obj *db.Tweet) (*db.User, error)
 }
 type UserResolver interface {
-	Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]*db.Tweet, error)
+	Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]db.Tweet, error)
 }
 
 type executableSchema struct {
@@ -335,19 +335,7 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
-	{Name: "graph/schema.graphqls", Input: `scalar Time
-
-directive @goModel(model: String, models: [String!]) on OBJECT
-  | INPUT_OBJECT
-  | SCALAR
-  | ENUM
-  | INTERFACE
-  | UNION
-
-directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
-  | FIELD_DEFINITION
-
-type User @goModel(model: "github.com/nebisin/gograph/db.User") {
+	{Name: "graph/schema.graphqls", Input: `type User @goModel(model: "github.com/nebisin/gograph/db.User") {
   id: ID!
   email: String!
   displayName: String
@@ -371,20 +359,33 @@ type Query {
   getUser(id: ID!): User!
 }
 
+type Mutation {
+  createTweet(input: CreateTweetParams!): Tweet!
+  updateTweet(input: UpdateTweetParams!): Tweet!
+  deleteTweet(id: ID!): Boolean!
+}
+
 input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
   content: String!
   authorId: ID!
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
+  id: ID!
   content: String!
 }
 
-type Mutation {
-  createTweet(input: CreateTweetParams!): Tweet!
-  updateTweet(input: UpdateTweetParams!): Tweet!
-  deleteTweet(id: ID!): Boolean!
-}`, BuiltIn: false},
+scalar Time
+
+directive @goModel(model: String, models: [String!]) on OBJECT
+  | INPUT_OBJECT
+  | SCALAR
+  | ENUM
+  | INTERFACE
+  | UNION
+
+directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
+  | FIELD_DEFINITION`, BuiltIn: false},
 }
 var parsedSchema = gqlparser.MustLoadSchema(sources...)
 
@@ -773,9 +774,9 @@ func (ec *executionContext) _Query_listTweet(ctx context.Context, field graphql.
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*db.Tweet)
+	res := resTmp.([]db.Tweet)
 	fc.Result = res
-	return ec.marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚕgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_getUser(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -1240,9 +1241,9 @@ func (ec *executionContext) _User_tweets(ctx context.Context, field graphql.Coll
 		}
 		return graphql.Null
 	}
-	res := resTmp.([]*db.Tweet)
+	res := resTmp.([]db.Tweet)
 	fc.Result = res
-	return ec.marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx, field.Selections, res)
+	return ec.marshalNTweet2ᚕgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _User_createdAt(ctx context.Context, field graphql.CollectedField, obj *db.User) (ret graphql.Marshaler) {
@@ -2436,6 +2437,14 @@ func (ec *executionContext) unmarshalInputUpdateTweetParams(ctx context.Context,
 
 	for k, v := range asMap {
 		switch k {
+		case "id":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("id"))
+			it.ID, err = ec.unmarshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
+			if err != nil {
+				return it, err
+			}
 		case "content":
 			var err error
 
@@ -3004,7 +3013,7 @@ func (ec *executionContext) marshalNTweet2githubᚗcomᚋnebisinᚋgographᚋdb�
 	return ec._Tweet(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx context.Context, sel ast.SelectionSet, v []*db.Tweet) graphql.Marshaler {
+func (ec *executionContext) marshalNTweet2ᚕgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweetᚄ(ctx context.Context, sel ast.SelectionSet, v []db.Tweet) graphql.Marshaler {
 	ret := make(graphql.Array, len(v))
 	var wg sync.WaitGroup
 	isLen1 := len(v) == 1
@@ -3028,7 +3037,7 @@ func (ec *executionContext) marshalNTweet2ᚕᚖgithubᚗcomᚋnebisinᚋgograph
 			if !isLen1 {
 				defer wg.Done()
 			}
-			ret[i] = ec.marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx, sel, v[i])
+			ret[i] = ec.marshalNTweet2githubᚗcomᚋnebisinᚋgographᚋdbᚐTweet(ctx, sel, v[i])
 		}
 		if isLen1 {
 			f(i)
