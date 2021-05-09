@@ -1,15 +1,3 @@
-scalar Time
-
-directive @goModel(model: String, models: [String!]) on OBJECT
-  | INPUT_OBJECT
-  | SCALAR
-  | ENUM
-  | INTERFACE
-  | UNION
-
-directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
-  | FIELD_DEFINITION
-
 type User @goModel(model: "github.com/nebisin/gograph/db.User") {
   id: ID!
   email: String!
@@ -34,6 +22,12 @@ type Query {
   getUser(id: ID!): User!
 }
 
+type Mutation {
+  createTweet(input: CreateTweetParams!): Tweet!
+  updateTweet(input: UpdateTweetParams!): Tweet!
+  deleteTweet(id: ID!): Boolean!
+}
+
 input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
   content: String!
   authorId: ID!
@@ -43,8 +37,14 @@ input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTwe
   content: String!
 }
 
-type Mutation {
-  createTweet(input: CreateTweetParams!): Tweet!
-  updateTweet(input: UpdateTweetParams!): Tweet!
-  deleteTweet(id: ID!): Boolean!
-}
+scalar Time
+
+directive @goModel(model: String, models: [String!]) on OBJECT
+  | INPUT_OBJECT
+  | SCALAR
+  | ENUM
+  | INTERFACE
+  | UNION
+
+directive @goField(forceResolver: Boolean, name: String) on INPUT_FIELD_DEFINITION
+  | FIELD_DEFINITION
