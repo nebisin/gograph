@@ -1,0 +1,15 @@
+type Mutation {
+    createTweet(input: CreateTweetParams!): Tweet!
+    updateTweet(input: UpdateTweetParams!): Tweet!
+    deleteTweet(id: ID!): Boolean!
+}
+
+input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
+    content: String!
+    authorId: ID!
+}
+
+input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
+    id: ID!
+    content: String!
+}

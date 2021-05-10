@@ -335,6 +335,26 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 }
 
 var sources = []*ast.Source{
+	{Name: "graph/mutation.graphqls", Input: `type Mutation {
+    createTweet(input: CreateTweetParams!): Tweet!
+    updateTweet(input: UpdateTweetParams!): Tweet!
+    deleteTweet(id: ID!): Boolean!
+}
+
+input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
+    content: String!
+    authorId: ID!
+}
+
+input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
+    id: ID!
+    content: String!
+}`, BuiltIn: false},
+	{Name: "graph/query.graphqls", Input: `type Query {
+    getTweet(id: ID!): Tweet!
+    listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
+    getUser(id: ID!): User!
+}`, BuiltIn: false},
 	{Name: "graph/schema.graphqls", Input: `type User @goModel(model: "github.com/nebisin/gograph/db.User") {
   id: ID!
   email: String!
@@ -351,28 +371,6 @@ type Tweet @goModel(model: "github.com/nebisin/gograph/db.Tweet") {
   author: User! @goField(forceResolver: true)
   createdAt: Time!
   updatedAt: Time!
-}
-
-type Query {
-  getTweet(id: ID!): Tweet!
-  listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
-  getUser(id: ID!): User!
-}
-
-type Mutation {
-  createTweet(input: CreateTweetParams!): Tweet!
-  updateTweet(input: UpdateTweetParams!): Tweet!
-  deleteTweet(id: ID!): Boolean!
-}
-
-input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
-  content: String!
-  authorId: ID!
-}
-
-input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
-  id: ID!
-  content: String!
 }
 
 scalar Time

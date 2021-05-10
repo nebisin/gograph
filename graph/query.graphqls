@@ -1,0 +1,5 @@
+type Query {
+    getTweet(id: ID!): Tweet!
+    listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
+    getUser(id: ID!): User!
+}

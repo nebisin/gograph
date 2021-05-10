@@ -1,4 +1,4 @@
-package graph
+package resolver
 
 import (
 	"go.mongodb.org/mongo-driver/mongo"

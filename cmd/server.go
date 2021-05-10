@@ -2,11 +2,13 @@ package cmd
 
 import (
 	"context"
+	"fmt"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/playground"
-	"github.com/nebisin/gograph/graph"
+	"github.com/joho/godotenv"
 	"github.com/nebisin/gograph/graph/generated"
+	"github.com/nebisin/gograph/graph/resolver"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -25,7 +27,7 @@ func Run() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	port := initEnv()
+	initEnv()
 
 	client, database := initDatabase(ctx)
 	defer func(client *mongo.Client, ctx context.Context) {
@@ -35,12 +37,15 @@ func Run() {
 		}
 	}(client, ctx)
 
-	initServer(database, port)
-
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	initServer(database)
 }
 
-func initServer(database *mongo.Database, port string) {
+func initServer(database *mongo.Database) {
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = defaultPort
+	}
+
 	config := initServerConfig(database)
 
 	schema := generated.NewExecutableSchema(config)
@@ -51,11 +56,12 @@ func initServer(database *mongo.Database, port string) {
 	http.Handle("/query", srv)
 
 	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
+	log.Fatal(http.ListenAndServe(":"+port, nil))
 }
 
 func initServerConfig(database *mongo.Database) generated.Config {
 	config := generated.Config{
-		Resolvers: &graph.Resolver{DB: database},
+		Resolvers: &resolver.Resolver{DB: database},
 	}
 
 	countComplexity := func(childComplexity int, limit *int, _ *int) int {
@@ -70,7 +76,13 @@ func initServerConfig(database *mongo.Database) generated.Config {
 }
 
 func initDatabase(ctx context.Context) (*mongo.Client, *mongo.Database) {
-	client, err := mongo.Connect(ctx, options.Client().ApplyURI("mongodb://admin:password@localhost:27017"))
+	dbUsername := os.Getenv("DB_USERNAME")
+	dbPassword := os.Getenv("DB_PASSWORD")
+	dbPort := os.Getenv("DB_PORT")
+	dbHost := os.Getenv("DB_HOST")
+	dbURI := fmt.Sprintf("mongodb://%s:%s@%s:%s", dbUsername, dbPassword, dbHost, dbPort)
+
+	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURI))
 	if err != nil {
 		log.Fatal("cannot connect the mongodb: ", err)
 	}
@@ -85,10 +97,9 @@ func initDatabase(ctx context.Context) (*mongo.Client, *mongo.Database) {
 	return client, database
 }
 
-func initEnv() string {
-	port := os.Getenv("PORT")
-	if port == "" {
-		port = defaultPort
+func initEnv() {
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatal("Error loading .env file")
 	}
-	return port
 }
