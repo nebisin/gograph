@@ -6,9 +6,11 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/playground"
+	"github.com/go-chi/chi/v5"
 	"github.com/joho/godotenv"
 	"github.com/nebisin/gograph/graph/generated"
 	"github.com/nebisin/gograph/graph/resolver"
+	"github.com/nebisin/gograph/middlewares"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 	"go.mongodb.org/mongo-driver/mongo/readpref"
@@ -46,17 +48,20 @@ func initServer(database *mongo.Database) {
 		port = defaultPort
 	}
 
+	router := chi.NewRouter()
+	router.Use(middlewares.AuthMiddleware())
+
 	config := initServerConfig(database)
 
 	schema := generated.NewExecutableSchema(config)
 	srv := handler.NewDefaultServer(schema)
 	srv.Use(extension.FixedComplexityLimit(defaultComplexity))
 
-	http.Handle("/", playground.Handler("GraphQL playground", "/query"))
-	http.Handle("/query", srv)
+	router.Handle("/", playground.Handler("GraphQL playground", "/query"))
+	router.Handle("/query", srv)
 
-	log.Printf("connect to http://localhost:%s/ for GraphQL playground", port)
-	log.Fatal(http.ListenAndServe(":"+port, nil))
+	log.Printf("🚀 connect to http://localhost:%s/ for GraphQL playground", port)
+	log.Fatal(http.ListenAndServe(":"+port, router))
 }
 
 func initServerConfig(database *mongo.Database) generated.Config {
