@@ -13,9 +13,8 @@ import (
 )
 
 func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error) {
-	repository := db.NewRepository(r.DB)
 
-	tweet, err := repository.GetTweet(ctx, id)
+	tweet, err := r.Repository.GetTweet(ctx, id)
 	if err != nil {
 		return nil, err
 	}
@@ -24,9 +23,8 @@ func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*d
 }
 
 func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([]db.Tweet, error) {
-	repository := db.NewRepository(r.DB)
 
-	tweets, err := repository.ListTweet(ctx, *limit, *page)
+	tweets, err := r.Repository.ListTweet(ctx, *limit, *page)
 	if err != nil {
 		return nil, err
 	}

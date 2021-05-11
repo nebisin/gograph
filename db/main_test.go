@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
+	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
@@ -49,7 +50,9 @@ func TestMain(m *testing.M) {
 
 	database := client.Database("social_test")
 
-	testRepository = NewRepository(database)
+	valid := validator.New()
+
+	testRepository = NewRepository(database, valid)
 
 	os.Exit(m.Run())
 }

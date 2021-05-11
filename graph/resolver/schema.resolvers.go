@@ -12,9 +12,8 @@ import (
 )
 
 func (r *tweetResolver) Author(ctx context.Context, obj *db.Tweet) (*db.User, error) {
-	repository := db.NewRepository(r.DB)
 
-	user, err := repository.GetUser(ctx, obj.AuthorId)
+	user, err := r.Repository.GetUser(ctx, obj.AuthorId)
 	if err != nil {
 		return nil, err
 	}

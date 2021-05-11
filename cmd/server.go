@@ -7,7 +7,9 @@ import (
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/playground"
 	"github.com/go-chi/chi/v5"
+	"github.com/go-playground/validator/v10"
 	"github.com/joho/godotenv"
+	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
 	"github.com/nebisin/gograph/graph/resolver"
 	"github.com/nebisin/gograph/middlewares"
@@ -65,8 +67,13 @@ func initServer(database *mongo.Database) {
 }
 
 func initServerConfig(database *mongo.Database) generated.Config {
+	valid := validator.New()
+
+	repository := db.NewRepository(database, valid)
 	config := generated.Config{
-		Resolvers: &resolver.Resolver{DB: database},
+		Resolvers: &resolver.Resolver{
+			Repository: repository,
+		},
 	}
 
 	countComplexity := func(childComplexity int, limit *int, _ *int) int {
