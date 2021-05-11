@@ -35,26 +35,19 @@ func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (User, 
 		return User{}, err
 	}
 
-	document := bson.D{
-		{"email", args.Email},
-		{"password", hashedPassword},
-		{"display_name", args.DisplayName},
-		{"created_at", timestamp},
-		{"updated_at", timestamp},
-	}
-	result, err := userCollection.InsertOne(ctx, document)
-	if err != nil {
-		log.Println(err)
-		return User{}, InternalServerError
-	}
-
 	newUser := User{
-		ID:          result.InsertedID.(primitive.ObjectID),
+		ID:          primitive.NewObjectID(),
 		Email:       args.Email,
 		Password:    hashedPassword,
 		DisplayName: args.DisplayName,
 		CreatedAt:   timestamp,
 		UpdatedAt:   timestamp,
+	}
+
+	_, err = userCollection.InsertOne(ctx, &newUser)
+	if err != nil {
+		log.Println(err)
+		return User{}, InternalServerError
 	}
 
 	return newUser, nil
