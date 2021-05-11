@@ -65,6 +65,7 @@ type ComplexityRoot struct {
 		GetTweet  func(childComplexity int, id primitive.ObjectID) int
 		GetUser   func(childComplexity int, id primitive.ObjectID) int
 		ListTweet func(childComplexity int, limit *int, page *int) int
+		Me        func(childComplexity int) int
 	}
 
 	Tweet struct {
@@ -97,6 +98,7 @@ type QueryResolver interface {
 	GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error)
 	ListTweet(ctx context.Context, limit *int, page *int) ([]db.Tweet, error)
 	GetUser(ctx context.Context, id primitive.ObjectID) (*db.User, error)
+	Me(ctx context.Context) (*db.User, error)
 }
 type TweetResolver interface {
 	Author(ctx context.Context, obj *db.Tweet) (*db.User, error)
@@ -229,6 +231,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Query.ListTweet(childComplexity, args["limit"].(*int), args["page"].(*int)), true
+
+	case "Query.me":
+		if e.complexity.Query.Me == nil {
+			break
+		}
+
+		return e.complexity.Query.Me(childComplexity), true
 
 	case "Tweet.author":
 		if e.complexity.Tweet.Author == nil {
@@ -410,6 +419,7 @@ type AuthPayload {
     getTweet(id: ID!): Tweet!
     listTweet(limit: Int = 10, page: Int = 1): [Tweet!]!
     getUser(id: ID!): User!
+    me: User!
 }`, BuiltIn: false},
 	{Name: "graph/schema.graphqls", Input: `type User @goModel(model: "github.com/nebisin/gograph/db.User") {
   id: ID!
@@ -1052,6 +1062,41 @@ func (ec *executionContext) _Query_getUser(ctx context.Context, field graphql.Co
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
 		return ec.resolvers.Query().GetUser(rctx, args["id"].(primitive.ObjectID))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*db.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Query_me(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Query",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Query().Me(rctx)
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2857,6 +2902,20 @@ func (ec *executionContext) _Query(ctx context.Context, sel ast.SelectionSet) gr
 					}
 				}()
 				res = ec._Query_getUser(ctx, field)
+				if res == graphql.Null {
+					atomic.AddUint32(&invalids, 1)
+				}
+				return res
+			})
+		case "me":
+			field := field
+			out.Concurrently(i, func() (res graphql.Marshaler) {
+				defer func() {
+					if r := recover(); r != nil {
+						ec.Error(ctx, ec.Recover(ctx, r))
+					}
+				}()
+				res = ec._Query_me(ctx, field)
 				if res == graphql.Null {
 					atomic.AddUint32(&invalids, 1)
 				}

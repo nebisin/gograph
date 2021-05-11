@@ -41,7 +41,6 @@ func (r *mutationResolver) UpdateTweet(ctx context.Context, input db.UpdateTweet
 		return nil, errors.New("you are not authorized")
 	}
 
-
 	tweet, err := r.Repository.GetTweet(ctx, input.ID)
 	if err != nil {
 		return nil, err
@@ -65,7 +64,6 @@ func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectI
 		return false, errors.New("you are not authorized")
 	}
 
-
 	tweet, err := r.Repository.GetTweet(ctx, id)
 	if err != nil {
 		return false, err
@@ -83,7 +81,6 @@ func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectI
 }
 
 func (r *mutationResolver) Register(ctx context.Context, input db.RegisterParams) (*model.AuthPayload, error) {
-
 	user, err := r.Repository.CreateUser(ctx, input)
 	if err != nil {
 		return nil, err
@@ -101,7 +98,6 @@ func (r *mutationResolver) Register(ctx context.Context, input db.RegisterParams
 }
 
 func (r *mutationResolver) Login(ctx context.Context, email string, password string) (*model.AuthPayload, error) {
-
 	user, err := r.Repository.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err

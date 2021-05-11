@@ -5,7 +5,8 @@ package resolver
 
 import (
 	"context"
-	"fmt"
+	"errors"
+	"github.com/nebisin/gograph/middlewares"
 
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
@@ -13,7 +14,6 @@ import (
 )
 
 func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error) {
-
 	tweet, err := r.Repository.GetTweet(ctx, id)
 	if err != nil {
 		return nil, err
@@ -23,7 +23,6 @@ func (r *queryResolver) GetTweet(ctx context.Context, id primitive.ObjectID) (*d
 }
 
 func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([]db.Tweet, error) {
-
 	tweets, err := r.Repository.ListTweet(ctx, *limit, *page)
 	if err != nil {
 		return nil, err
@@ -33,7 +32,26 @@ func (r *queryResolver) ListTweet(ctx context.Context, limit *int, page *int) ([
 }
 
 func (r *queryResolver) GetUser(ctx context.Context, id primitive.ObjectID) (*db.User, error) {
-	panic(fmt.Errorf("not implemented"))
+	user, err := r.Repository.GetUser(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+func (r *queryResolver) Me(ctx context.Context) (*db.User, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return nil, errors.New("you are not authorized")
+	}
+
+	user, err := r.Repository.GetUser(ctx, payload.UserID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
 // Query returns generated.QueryResolver implementation.
