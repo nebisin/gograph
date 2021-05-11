@@ -8,12 +8,10 @@ import (
 	"time"
 )
 
-func createRandomTweet(t *testing.T) Tweet {
-	user := createRandomUser(t)
+func createRandomTweet(t *testing.T, user User) Tweet {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 
 	args := CreateTweetParams{
 		Content:  util.RandomContent(),
@@ -32,11 +30,15 @@ func createRandomTweet(t *testing.T) Tweet {
 }
 
 func TestRepository_CreateTweet(t *testing.T) {
-	createRandomTweet(t)
+	user := createRandomUser(t)
+
+	createRandomTweet(t, user)
 }
 
 func TestRepository_GetTweet(t *testing.T) {
-	tweet1 := createRandomTweet(t)
+	user := createRandomUser(t)
+
+	tweet1 := createRandomTweet(t, user)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -53,8 +55,10 @@ func TestRepository_GetTweet(t *testing.T) {
 }
 
 func TestRepository_ListTweet(t *testing.T) {
+	user := createRandomUser(t)
+
 	for i := 0; i < 5; i++ {
-		createRandomTweet(t)
+		createRandomTweet(t, user)
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -66,11 +70,14 @@ func TestRepository_ListTweet(t *testing.T) {
 
 	for _, tweet := range tweets {
 		require.NotEmpty(t, tweet)
+		require.Equal(t, tweet.AuthorId, user.ID)
 	}
 }
 
 func TestRepository_DeleteTweet(t *testing.T) {
-	tweet1 := createRandomTweet(t)
+	user := createRandomUser(t)
+
+	tweet1 := createRandomTweet(t, user)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -84,7 +91,8 @@ func TestRepository_DeleteTweet(t *testing.T) {
 }
 
 func TestRepository_UpdateTweet(t *testing.T) {
-	tweet1 := createRandomTweet(t)
+	user := createRandomUser(t)
+	tweet1 := createRandomTweet(t, user)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -103,4 +111,24 @@ func TestRepository_UpdateTweet(t *testing.T) {
 	require.Equal(t, tweet2.Content, args.Content)
 	require.WithinDuration(t, tweet2.CreatedAt, tweet1.CreatedAt, time.Second)
 	require.NotZero(t, tweet2.UpdatedAt)
+}
+
+func TestRepository_ListTweetByAuthor(t *testing.T) {
+	user := createRandomUser(t)
+
+	for i := 0; i < 5; i++ {
+		createRandomTweet(t, user)
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	tweets, err := testRepository.ListTweetByAuthor(ctx, user.ID, 5, 1)
+	require.NoError(t, err)
+	require.Len(t, tweets, 5)
+
+	for _, tweet := range tweets {
+		require.NotEmpty(t, tweet)
+		require.Equal(t, tweet.AuthorId, user.ID)
+	}
 }
