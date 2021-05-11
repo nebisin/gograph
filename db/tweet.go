@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/nebisin/gograph/middlewares"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -20,34 +19,25 @@ type CreateTweetParams struct {
 }
 
 func (r Repository) CreateTweet(ctx context.Context, args CreateTweetParams) (Tweet, error) {
-	payload := middlewares.AuthContext(ctx)
-	if payload == nil {
-		return Tweet{}, errors.New("you are not authorized")
-	}
-
 	tweetCollection := r.db.Collection("tweet")
 
 	timestamp := time.Now()
 
-	document := bson.D{
-		{"content", args.Content},
-		{"author_id", args.AuthorID},
-		{"created_at", timestamp},
-		{"updated_at", timestamp},
-	}
-	result, err := tweetCollection.InsertOne(ctx, document)
-	if err != nil {
-		log.Println(err)
-		return Tweet{}, InternalServerError
-	}
-
 	newTweet := Tweet{
-		ID:        result.InsertedID.(primitive.ObjectID),
+		ID:        primitive.NewObjectID(),
 		Content:   args.Content,
 		AuthorId:  args.AuthorID,
 		CreatedAt: timestamp,
 		UpdatedAt: timestamp,
 	}
+
+	result, err := tweetCollection.InsertOne(ctx, &newTweet)
+	if err != nil {
+		log.Println(err)
+		return Tweet{}, InternalServerError
+	}
+
+	newTweet.ID = result.InsertedID.(primitive.ObjectID)
 
 	return newTweet, nil
 }
@@ -88,12 +78,17 @@ func (r Repository) ListTweet(ctx context.Context, limit int, page int) ([]Tweet
 }
 
 func (r Repository) DeleteTweet(ctx context.Context, id primitive.ObjectID) error {
+
 	tweetCollection := r.db.Collection("tweet")
 
-	_, err := tweetCollection.DeleteOne(ctx, bson.D{{"_id", id}})
+	result, err := tweetCollection.DeleteOne(ctx, bson.D{{"_id", id}})
 	if err != nil {
 		log.Println(err)
 		return InternalServerError
+	}
+
+	if result.DeletedCount == 0 {
+		return errors.New("the tweet with id " + id.Hex() + " could not found")
 	}
 
 	return nil

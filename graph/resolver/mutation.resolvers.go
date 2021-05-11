@@ -5,16 +5,26 @@ package resolver
 
 import (
 	"context"
+	"errors"
 
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
+	"github.com/nebisin/gograph/middlewares"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
-func (r *mutationResolver) CreateTweet(ctx context.Context, input db.CreateTweetParams) (*db.Tweet, error) {
+func (r *mutationResolver) CreateTweet(ctx context.Context, content string) (*db.Tweet, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return nil, errors.New("you are not authorized")
+	}
+
 	repository := db.NewRepository(r.DB)
 
-	tweet, err := repository.CreateTweet(ctx, input)
+	tweet, err := repository.CreateTweet(ctx, db.CreateTweetParams{
+		Content:  content,
+		AuthorID: payload.UserID,
+	})
 	if err != nil {
 		return nil, err
 	}
@@ -23,9 +33,23 @@ func (r *mutationResolver) CreateTweet(ctx context.Context, input db.CreateTweet
 }
 
 func (r *mutationResolver) UpdateTweet(ctx context.Context, input db.UpdateTweetParams) (*db.Tweet, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return nil, errors.New("you are not authorized")
+	}
+
 	repository := db.NewRepository(r.DB)
 
-	tweet, err := repository.UpdateTweet(ctx, input)
+	tweet, err := repository.GetTweet(ctx, input.ID)
+	if err != nil {
+		return nil, err
+	}
+
+	if tweet.AuthorId != payload.UserID {
+		return nil, errors.New("you are not authorized")
+	}
+
+	tweet, err = repository.UpdateTweet(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -34,10 +58,23 @@ func (r *mutationResolver) UpdateTweet(ctx context.Context, input db.UpdateTweet
 }
 
 func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectID) (bool, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return false, errors.New("you are not authorized")
+	}
+
 	repository := db.NewRepository(r.DB)
 
-	err := repository.DeleteTweet(ctx, id)
+	tweet, err := repository.GetTweet(ctx, id)
 	if err != nil {
+		return false, err
+	}
+
+	if tweet.AuthorId != payload.UserID {
+		return false, errors.New("you are not authorized")
+	}
+
+	if err := repository.DeleteTweet(ctx, id); err != nil {
 		return false, err
 	}
 

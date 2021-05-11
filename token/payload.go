@@ -3,6 +3,7 @@ package token
 import (
 	"errors"
 	"github.com/google/uuid"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"time"
 )
 
@@ -12,13 +13,13 @@ var (
 )
 
 type Payload struct {
-	ID        uuid.UUID `json:"id"`
-	Email     string             `json:"email"`
+	ID        uuid.UUID          `json:"id"`
+	UserID    primitive.ObjectID `json:"user_id"`
 	IssuedAt  time.Time          `json:"issued_at"`
 	ExpiredAt time.Time          `json:"expired_at"`
 }
 
-func NewPayload(email string, duration time.Duration) (*Payload, error) {
+func NewPayload(userID primitive.ObjectID, duration time.Duration) (*Payload, error) {
 	tokenID, err := uuid.NewRandom()
 	if err != nil {
 		return nil, err
@@ -26,7 +27,7 @@ func NewPayload(email string, duration time.Duration) (*Payload, error) {
 
 	payload := Payload{
 		ID:        tokenID,
-		Email:     email,
+		UserID:    userID,
 		IssuedAt:  time.Now(),
 		ExpiredAt: time.Now().Add(duration),
 	}

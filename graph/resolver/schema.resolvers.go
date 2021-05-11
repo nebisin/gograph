@@ -6,20 +6,19 @@ package resolver
 import (
 	"context"
 	"fmt"
-	"time"
-
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
 )
 
 func (r *tweetResolver) Author(ctx context.Context, obj *db.Tweet) (*db.User, error) {
-	return &db.User{
-		ID:        obj.AuthorId,
-		Email:     "test@test.com",
-		Password:  "testpassword",
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
-	}, nil
+	repository := db.NewRepository(r.DB)
+
+	user, err := repository.GetUser(ctx, obj.AuthorId)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
 }
 
 func (r *userResolver) Tweets(ctx context.Context, obj *db.User, limit *int, page *int) ([]db.Tweet, error) {

@@ -3,13 +3,15 @@ package token
 import (
 	"errors"
 	"github.com/dgrijalva/jwt-go"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 	"os"
+	"strings"
 	"time"
 )
 
 
-func CreateToken(email string, duration time.Duration) (string, error) {
-	payload, err := NewPayload(email, duration)
+func CreateToken(userID primitive.ObjectID, duration time.Duration) (string, error) {
+	payload, err := NewPayload(userID, duration)
 	if err != nil {
 		return "", err
 	}
@@ -42,4 +44,20 @@ func VerifyToken(token string) (*Payload, error) {
 	}
 
 	return payload, nil
+}
+
+func ParseToken(authHeader string) (string, error) {
+	fields := strings.Fields(authHeader)
+	if len(fields) < 2 {
+		return "", errors.New("invalid authorization header")
+	}
+
+	authType := strings.ToLower(fields[0])
+	if authType != "bearer" {
+		return "", errors.New("unsupported authorization type")
+	}
+
+	accessToken := fields[1]
+
+	return accessToken, nil
 }

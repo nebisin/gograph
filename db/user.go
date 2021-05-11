@@ -62,7 +62,7 @@ func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (AuthPa
 		UpdatedAt:   timestamp,
 	}
 
-	newToken, err := token.CreateToken(args.Email, time.Hour*8)
+	newToken, err := token.CreateToken(newUser.ID, time.Hour*8)
 	if err != nil {
 		return AuthPayload{}, err
 	}
@@ -93,10 +93,26 @@ func (r Repository) Login(ctx context.Context, args LoginParams) (AuthPayload, e
 		return AuthPayload{}, errors.New("wrong email or password is wrong")
 	}
 
-	newToken, err := token.CreateToken(args.Email, time.Hour*8)
+	newToken, err := token.CreateToken(user.ID, time.Hour*8)
 	if err != nil {
 		return AuthPayload{}, err
 	}
 
 	return AuthPayload{Token: newToken, User: user}, nil
+}
+
+func (r Repository) GetUser(ctx context.Context, id primitive.ObjectID) (User, error) {
+	tweetCollection := r.db.Collection("user")
+
+	var user User
+	err := tweetCollection.FindOne(ctx, bson.D{{"_id", id}}).Decode(&user)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return User{}, errors.New("the user with id " + id.Hex() + " could not found")
+		}
+		log.Println(err)
+		return User{}, InternalServerError
+	}
+
+	return user, nil
 }

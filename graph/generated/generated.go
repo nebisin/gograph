@@ -53,7 +53,7 @@ type ComplexityRoot struct {
 	}
 
 	Mutation struct {
-		CreateTweet func(childComplexity int, input db.CreateTweetParams) int
+		CreateTweet func(childComplexity int, content string) int
 		DeleteTweet func(childComplexity int, id primitive.ObjectID) int
 		Login       func(childComplexity int, input db.LoginParams) int
 		Register    func(childComplexity int, input db.RegisterParams) int
@@ -86,7 +86,7 @@ type ComplexityRoot struct {
 }
 
 type MutationResolver interface {
-	CreateTweet(ctx context.Context, input db.CreateTweetParams) (*db.Tweet, error)
+	CreateTweet(ctx context.Context, content string) (*db.Tweet, error)
 	UpdateTweet(ctx context.Context, input db.UpdateTweetParams) (*db.Tweet, error)
 	DeleteTweet(ctx context.Context, id primitive.ObjectID) (bool, error)
 	Register(ctx context.Context, input db.RegisterParams) (*db.AuthPayload, error)
@@ -143,7 +143,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.CreateTweet(childComplexity, args["input"].(db.CreateTweetParams)), true
+		return e.complexity.Mutation.CreateTweet(childComplexity, args["content"].(string)), true
 
 	case "Mutation.deleteTweet":
 		if e.complexity.Mutation.DeleteTweet == nil {
@@ -383,16 +383,11 @@ func (ec *executionContext) introspectType(name string) (*introspection.Type, er
 
 var sources = []*ast.Source{
 	{Name: "graph/mutation.graphqls", Input: `type Mutation {
-    createTweet(input: CreateTweetParams!): Tweet!
+    createTweet(content: String!): Tweet!
     updateTweet(input: UpdateTweetParams!): Tweet!
     deleteTweet(id: ID!): Boolean!
     register(input: RegisterParams!): AuthPayload!
     login(input: LoginParams!): AuthPayload!
-}
-
-input CreateTweetParams @goModel(model: "github.com/nebisin/gograph/db.CreateTweetParams") {
-    content: String!
-    authorId: ID!
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
@@ -459,15 +454,15 @@ var parsedSchema = gqlparser.MustLoadSchema(sources...)
 func (ec *executionContext) field_Mutation_createTweet_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 db.CreateTweetParams
-	if tmp, ok := rawArgs["input"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNCreateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐCreateTweetParams(ctx, tmp)
+	var arg0 string
+	if tmp, ok := rawArgs["content"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["input"] = arg0
+	args["content"] = arg0
 	return args, nil
 }
 
@@ -757,7 +752,7 @@ func (ec *executionContext) _Mutation_createTweet(ctx context.Context, field gra
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().CreateTweet(rctx, args["input"].(db.CreateTweetParams))
+		return ec.resolvers.Mutation().CreateTweet(rctx, args["content"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -2650,34 +2645,6 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputCreateTweetParams(ctx context.Context, obj interface{}) (db.CreateTweetParams, error) {
-	var it db.CreateTweetParams
-	var asMap = obj.(map[string]interface{})
-
-	for k, v := range asMap {
-		switch k {
-		case "content":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("content"))
-			it.Content, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "authorId":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("authorId"))
-			it.AuthorID, err = ec.unmarshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputLoginParams(ctx context.Context, obj interface{}) (db.LoginParams, error) {
 	var it db.LoginParams
 	var asMap = obj.(map[string]interface{})
@@ -3324,11 +3291,6 @@ func (ec *executionContext) marshalNBoolean2bool(ctx context.Context, sel ast.Se
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNCreateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐCreateTweetParams(ctx context.Context, v interface{}) (db.CreateTweetParams, error) {
-	res, err := ec.unmarshalInputCreateTweetParams(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbsonᚋprimitiveᚐObjectID(ctx context.Context, v interface{}) (primitive.ObjectID, error) {

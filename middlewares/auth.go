@@ -4,12 +4,10 @@ import (
 	"context"
 	"github.com/nebisin/gograph/token"
 	"net/http"
-	"strings"
 )
 
 const (
 	authorizationHeaderKey  = "authorization"
-	authorizationTypeBearer = "bearer"
 	authorizationPayloadKey = "authorization_payload"
 )
 
@@ -22,19 +20,11 @@ func AuthMiddleware() func(handler http.Handler) http.Handler {
 				return
 			}
 
-			fields := strings.Fields(authHeader)
-			if len(fields) < 2 {
-				http.Error(w,"invalid authorization header", http.StatusUnauthorized)
+			accessToken, err := token.ParseToken(authHeader)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusUnauthorized)
 				return
 			}
-
-			authType := strings.ToLower(fields[0])
-			if authType != authorizationTypeBearer {
-				http.Error(w,"unsupported authorization type", http.StatusUnauthorized)
-				return
-			}
-
-			accessToken := fields[1]
 
 			payload, err := token.VerifyToken(accessToken)
 			if err != nil {
