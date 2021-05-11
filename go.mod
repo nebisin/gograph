@@ -7,4 +7,5 @@ require (
 	github.com/joho/godotenv v1.3.0 // indirect
 	github.com/vektah/gqlparser/v2 v2.1.0
 	go.mongodb.org/mongo-driver v1.5.2
+	golang.org/x/crypto v0.0.0-20210506145944-38f3c27a63bf // indirect
 )

@@ -44,6 +44,28 @@ func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectI
 	return true, nil
 }
 
+func (r *mutationResolver) Register(ctx context.Context, input db.RegisterParams) (*db.AuthPayload, error) {
+	repository := db.NewRepository(r.DB)
+
+	payload, err := repository.CreateUser(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
+}
+
+func (r *mutationResolver) Login(ctx context.Context, input db.LoginParams) (*db.AuthPayload, error) {
+	repository := db.NewRepository(r.DB)
+
+	payload, err := repository.Login(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &payload, nil
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 
