@@ -12,15 +12,20 @@ import (
 )
 
 type RegisterParams struct {
-	Email       string `json:"email"`
-	Password    string `json:"password"`
-	DisplayName string `json:"displayName"`
+	Email       string `json:"email" validate:"required,email"`
+	Password    string `json:"password" validate:"required,min=8"`
+	DisplayName string `json:"displayName" validate:"required,alphanum"`
 }
 
 func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (User, error) {
+	err := r.valid.Struct(args)
+	if err != nil {
+		return User{}, err
+	}
+
 	userCollection := r.db.Collection("user")
 
-	err := userCollection.FindOne(ctx, bson.D{{"email", args.Email}}).Err()
+	err = userCollection.FindOne(ctx, bson.D{{"email", args.Email}}).Err()
 	if err != mongo.ErrNoDocuments {
 		if err == nil {
 			return User{}, errors.New("email address is already taken: " + args.Email)

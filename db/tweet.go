@@ -14,11 +14,16 @@ import (
 var InternalServerError = errors.New("something went wrong")
 
 type CreateTweetParams struct {
-	Content  string             `json:"content"`
-	AuthorID primitive.ObjectID `json:"authorId"`
+	Content  string             `json:"content" validate:"required,min=1,max=180"`
+	AuthorID primitive.ObjectID `json:"authorId" validate:"required"`
 }
 
 func (r Repository) CreateTweet(ctx context.Context, args CreateTweetParams) (Tweet, error) {
+	err := r.valid.Struct(args)
+	if err != nil {
+		return Tweet{}, err
+	}
+
 	tweetCollection := r.db.Collection("tweet")
 
 	timestamp := time.Now()
@@ -94,11 +99,16 @@ func (r Repository) DeleteTweet(ctx context.Context, id primitive.ObjectID) erro
 }
 
 type UpdateTweetParams struct {
-	ID      primitive.ObjectID `json:"id"`
-	Content string             `json:"content"`
+	ID      primitive.ObjectID `json:"id" validate:"required"`
+	Content string             `json:"content" validate:"required,min=1,max=180"`
 }
 
 func (r Repository) UpdateTweet(ctx context.Context, args UpdateTweetParams) (Tweet, error) {
+	err := r.valid.Struct(args)
+	if err != nil {
+		return Tweet{}, err
+	}
+
 	tweetCollection := r.db.Collection("tweet")
 
 	timestamp := time.Now()
@@ -110,7 +120,7 @@ func (r Repository) UpdateTweet(ctx context.Context, args UpdateTweetParams) (Tw
 		},
 	}}
 	var tweet Tweet
-	err := tweetCollection.FindOneAndUpdate(ctx, filter, update).Decode(&tweet)
+	err = tweetCollection.FindOneAndUpdate(ctx, filter, update).Decode(&tweet)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
 			return Tweet{}, errors.New("the tweet with id " + args.ID.Hex() + " could not found")
