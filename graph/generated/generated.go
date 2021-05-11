@@ -14,6 +14,7 @@ import (
 	"github.com/99designs/gqlgen/graphql"
 	"github.com/99designs/gqlgen/graphql/introspection"
 	"github.com/nebisin/gograph/db"
+	"github.com/nebisin/gograph/graph/model"
 	gqlparser "github.com/vektah/gqlparser/v2"
 	"github.com/vektah/gqlparser/v2/ast"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -55,7 +56,7 @@ type ComplexityRoot struct {
 	Mutation struct {
 		CreateTweet func(childComplexity int, content string) int
 		DeleteTweet func(childComplexity int, id primitive.ObjectID) int
-		Login       func(childComplexity int, input db.LoginParams) int
+		Login       func(childComplexity int, email string, password string) int
 		Register    func(childComplexity int, input db.RegisterParams) int
 		UpdateTweet func(childComplexity int, input db.UpdateTweetParams) int
 	}
@@ -89,8 +90,8 @@ type MutationResolver interface {
 	CreateTweet(ctx context.Context, content string) (*db.Tweet, error)
 	UpdateTweet(ctx context.Context, input db.UpdateTweetParams) (*db.Tweet, error)
 	DeleteTweet(ctx context.Context, id primitive.ObjectID) (bool, error)
-	Register(ctx context.Context, input db.RegisterParams) (*db.AuthPayload, error)
-	Login(ctx context.Context, input db.LoginParams) (*db.AuthPayload, error)
+	Register(ctx context.Context, input db.RegisterParams) (*model.AuthPayload, error)
+	Login(ctx context.Context, email string, password string) (*model.AuthPayload, error)
 }
 type QueryResolver interface {
 	GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error)
@@ -167,7 +168,7 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 			return 0, false
 		}
 
-		return e.complexity.Mutation.Login(childComplexity, args["input"].(db.LoginParams)), true
+		return e.complexity.Mutation.Login(childComplexity, args["email"].(string), args["password"].(string)), true
 
 	case "Mutation.register":
 		if e.complexity.Mutation.Register == nil {
@@ -387,7 +388,7 @@ var sources = []*ast.Source{
     updateTweet(input: UpdateTweetParams!): Tweet!
     deleteTweet(id: ID!): Boolean!
     register(input: RegisterParams!): AuthPayload!
-    login(input: LoginParams!): AuthPayload!
+    login(email: String!, password: String!): AuthPayload!
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
@@ -401,12 +402,7 @@ input RegisterParams @goModel(model: "github.com/nebisin/gograph/db.RegisterPara
     displayName: String!
 }
 
-input LoginParams @goModel(model: "github.com/nebisin/gograph/db.LoginParams") {
-    email: String!
-    password: String!
-}
-
-type AuthPayload @goModel(model: "github.com/nebisin/gograph/db.AuthPayload") {
+type AuthPayload {
     token: String!
     user: User!
 }`, BuiltIn: false},
@@ -484,15 +480,24 @@ func (ec *executionContext) field_Mutation_deleteTweet_args(ctx context.Context,
 func (ec *executionContext) field_Mutation_login_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
 	var err error
 	args := map[string]interface{}{}
-	var arg0 db.LoginParams
-	if tmp, ok := rawArgs["input"]; ok {
-		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
-		arg0, err = ec.unmarshalNLoginParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐLoginParams(ctx, tmp)
+	var arg0 string
+	if tmp, ok := rawArgs["email"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+		arg0, err = ec.unmarshalNString2string(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
 	}
-	args["input"] = arg0
+	args["email"] = arg0
+	var arg1 string
+	if tmp, ok := rawArgs["password"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+		arg1, err = ec.unmarshalNString2string(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["password"] = arg1
 	return args, nil
 }
 
@@ -657,7 +662,7 @@ func (ec *executionContext) field___Type_fields_args(ctx context.Context, rawArg
 
 // region    **************************** field.gotpl *****************************
 
-func (ec *executionContext) _AuthPayload_token(ctx context.Context, field graphql.CollectedField, obj *db.AuthPayload) (ret graphql.Marshaler) {
+func (ec *executionContext) _AuthPayload_token(ctx context.Context, field graphql.CollectedField, obj *model.AuthPayload) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -692,7 +697,7 @@ func (ec *executionContext) _AuthPayload_token(ctx context.Context, field graphq
 	return ec.marshalNString2string(ctx, field.Selections, res)
 }
 
-func (ec *executionContext) _AuthPayload_user(ctx context.Context, field graphql.CollectedField, obj *db.AuthPayload) (ret graphql.Marshaler) {
+func (ec *executionContext) _AuthPayload_user(ctx context.Context, field graphql.CollectedField, obj *model.AuthPayload) (ret graphql.Marshaler) {
 	defer func() {
 		if r := recover(); r != nil {
 			ec.Error(ctx, ec.Recover(ctx, r))
@@ -722,9 +727,9 @@ func (ec *executionContext) _AuthPayload_user(ctx context.Context, field graphql
 		}
 		return graphql.Null
 	}
-	res := resTmp.(db.User)
+	res := resTmp.(*db.User)
 	fc.Result = res
-	return ec.marshalNUser2githubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx, field.Selections, res)
+	return ec.marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_createTweet(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -890,9 +895,9 @@ func (ec *executionContext) _Mutation_register(ctx context.Context, field graphq
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*db.AuthPayload)
+	res := resTmp.(*model.AuthPayload)
 	fc.Result = res
-	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐAuthPayload(ctx, field.Selections, res)
+	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐAuthPayload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -920,7 +925,7 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 	fc.Args = args
 	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
 		ctx = rctx // use context from middleware stack in children
-		return ec.resolvers.Mutation().Login(rctx, args["input"].(db.LoginParams))
+		return ec.resolvers.Mutation().Login(rctx, args["email"].(string), args["password"].(string))
 	})
 	if err != nil {
 		ec.Error(ctx, err)
@@ -932,9 +937,9 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 		}
 		return graphql.Null
 	}
-	res := resTmp.(*db.AuthPayload)
+	res := resTmp.(*model.AuthPayload)
 	fc.Result = res
-	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐAuthPayload(ctx, field.Selections, res)
+	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐAuthPayload(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_getTweet(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2645,34 +2650,6 @@ func (ec *executionContext) ___Type_ofType(ctx context.Context, field graphql.Co
 
 // region    **************************** input.gotpl *****************************
 
-func (ec *executionContext) unmarshalInputLoginParams(ctx context.Context, obj interface{}) (db.LoginParams, error) {
-	var it db.LoginParams
-	var asMap = obj.(map[string]interface{})
-
-	for k, v := range asMap {
-		switch k {
-		case "email":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
-			it.Email, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		case "password":
-			var err error
-
-			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
-			it.Password, err = ec.unmarshalNString2string(ctx, v)
-			if err != nil {
-				return it, err
-			}
-		}
-	}
-
-	return it, nil
-}
-
 func (ec *executionContext) unmarshalInputRegisterParams(ctx context.Context, obj interface{}) (db.RegisterParams, error) {
 	var it db.RegisterParams
 	var asMap = obj.(map[string]interface{})
@@ -2747,7 +2724,7 @@ func (ec *executionContext) unmarshalInputUpdateTweetParams(ctx context.Context,
 
 var authPayloadImplementors = []string{"AuthPayload"}
 
-func (ec *executionContext) _AuthPayload(ctx context.Context, sel ast.SelectionSet, obj *db.AuthPayload) graphql.Marshaler {
+func (ec *executionContext) _AuthPayload(ctx context.Context, sel ast.SelectionSet, obj *model.AuthPayload) graphql.Marshaler {
 	fields := graphql.CollectFields(ec.OperationContext, sel, authPayloadImplementors)
 
 	out := graphql.NewFieldSet(fields)
@@ -3264,11 +3241,11 @@ func (ec *executionContext) ___Type(ctx context.Context, sel ast.SelectionSet, o
 
 // region    ***************************** type.gotpl *****************************
 
-func (ec *executionContext) marshalNAuthPayload2githubᚗcomᚋnebisinᚋgographᚋdbᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v db.AuthPayload) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthPayload2githubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v model.AuthPayload) graphql.Marshaler {
 	return ec._AuthPayload(ctx, sel, &v)
 }
 
-func (ec *executionContext) marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v *db.AuthPayload) graphql.Marshaler {
+func (ec *executionContext) marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐAuthPayload(ctx context.Context, sel ast.SelectionSet, v *model.AuthPayload) graphql.Marshaler {
 	if v == nil {
 		if !graphql.HasFieldError(ctx, graphql.GetFieldContext(ctx)) {
 			ec.Errorf(ctx, "must not be null")
@@ -3306,11 +3283,6 @@ func (ec *executionContext) marshalNID2goᚗmongodbᚗorgᚋmongoᚑdriverᚋbso
 		}
 	}
 	return res
-}
-
-func (ec *executionContext) unmarshalNLoginParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐLoginParams(ctx context.Context, v interface{}) (db.LoginParams, error) {
-	res, err := ec.unmarshalInputLoginParams(ctx, v)
-	return res, graphql.ErrorOnPath(ctx, err)
 }
 
 func (ec *executionContext) unmarshalNRegisterParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐRegisterParams(ctx context.Context, v interface{}) (db.RegisterParams, error) {

@@ -3,7 +3,7 @@ type Mutation {
     updateTweet(input: UpdateTweetParams!): Tweet!
     deleteTweet(id: ID!): Boolean!
     register(input: RegisterParams!): AuthPayload!
-    login(input: LoginParams!): AuthPayload!
+    login(email: String!, password: String!): AuthPayload!
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
@@ -17,12 +17,7 @@ input RegisterParams @goModel(model: "github.com/nebisin/gograph/db.RegisterPara
     displayName: String!
 }
 
-input LoginParams @goModel(model: "github.com/nebisin/gograph/db.LoginParams") {
-    email: String!
-    password: String!
-}
-
-type AuthPayload @goModel(model: "github.com/nebisin/gograph/db.AuthPayload") {
+type AuthPayload {
     token: String!
     user: User!
 }

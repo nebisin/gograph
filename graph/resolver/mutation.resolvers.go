@@ -6,10 +6,15 @@ package resolver
 import (
 	"context"
 	"errors"
+	"log"
+	"time"
 
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
+	"github.com/nebisin/gograph/graph/model"
 	"github.com/nebisin/gograph/middlewares"
+	"github.com/nebisin/gograph/token"
+	"github.com/nebisin/gograph/util"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
@@ -81,26 +86,47 @@ func (r *mutationResolver) DeleteTweet(ctx context.Context, id primitive.ObjectI
 	return true, nil
 }
 
-func (r *mutationResolver) Register(ctx context.Context, input db.RegisterParams) (*db.AuthPayload, error) {
+func (r *mutationResolver) Register(ctx context.Context, input db.RegisterParams) (*model.AuthPayload, error) {
 	repository := db.NewRepository(r.DB)
 
-	payload, err := repository.CreateUser(ctx, input)
+	user, err := repository.CreateUser(ctx, input)
 	if err != nil {
 		return nil, err
 	}
 
-	return &payload, nil
+	newToken, err := token.CreateToken(user.ID, time.Hour*8)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuthPayload{
+		Token: newToken,
+		User:  &user,
+	}, nil
 }
 
-func (r *mutationResolver) Login(ctx context.Context, input db.LoginParams) (*db.AuthPayload, error) {
+func (r *mutationResolver) Login(ctx context.Context, email string, password string) (*model.AuthPayload, error) {
 	repository := db.NewRepository(r.DB)
 
-	payload, err := repository.Login(ctx, input)
+	user, err := repository.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 
-	return &payload, nil
+	if err := util.CheckPassword(password, user.Password); err != nil {
+		log.Println(err)
+		return nil, errors.New("wrong email or password is wrong")
+	}
+
+	newToken, err := token.CreateToken(user.ID, time.Hour*8)
+	if err != nil {
+		return nil, err
+	}
+
+	return &model.AuthPayload{
+		Token: newToken,
+		User:  &user,
+	}, nil
 }
 
 // Mutation returns generated.MutationResolver implementation.

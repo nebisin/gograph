@@ -6,6 +6,7 @@ package resolver
 import (
 	"context"
 	"fmt"
+
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
 )

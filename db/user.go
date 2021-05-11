@@ -3,7 +3,6 @@ package db
 import (
 	"context"
 	"errors"
-	"github.com/nebisin/gograph/token"
 	"github.com/nebisin/gograph/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -18,27 +17,22 @@ type RegisterParams struct {
 	DisplayName string `json:"displayName"`
 }
 
-type AuthPayload struct {
-	Token string `json:"token"`
-	User  User   `json:"user"`
-}
-
-func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (AuthPayload, error) {
+func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (User, error) {
 	userCollection := r.db.Collection("user")
 
 	err := userCollection.FindOne(ctx, bson.D{{"email", args.Email}}).Err()
 	if err != mongo.ErrNoDocuments {
 		if err == nil {
-			return AuthPayload{}, errors.New("email address is already taken: " + args.Email)
+			return User{}, errors.New("email address is already taken: " + args.Email)
 		}
 		log.Println(err)
-		return AuthPayload{}, InternalServerError
+		return User{}, InternalServerError
 	}
 
 	timestamp := time.Now()
 	hashedPassword, err := util.HashPassword(args.Password)
 	if err != nil {
-		return AuthPayload{}, err
+		return User{}, err
 	}
 
 	document := bson.D{
@@ -51,54 +45,35 @@ func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (AuthPa
 	result, err := userCollection.InsertOne(ctx, document)
 	if err != nil {
 		log.Println(err)
-		return AuthPayload{}, InternalServerError
+		return User{}, InternalServerError
 	}
 
 	newUser := User{
 		ID:          result.InsertedID.(primitive.ObjectID),
 		Email:       args.Email,
+		Password:    hashedPassword,
 		DisplayName: args.DisplayName,
 		CreatedAt:   timestamp,
 		UpdatedAt:   timestamp,
 	}
 
-	newToken, err := token.CreateToken(newUser.ID, time.Hour*8)
-	if err != nil {
-		return AuthPayload{}, err
-	}
-
-	return AuthPayload{newToken, newUser}, nil
+	return newUser, nil
 }
 
-type LoginParams struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-func (r Repository) Login(ctx context.Context, args LoginParams) (AuthPayload, error) {
+func (r Repository) GetUserByEmail(ctx context.Context, email string) (User, error) {
 	userCollection := r.db.Collection("user")
 
 	var user User
-	err := userCollection.FindOne(ctx, bson.D{{"email", args.Email}}).Decode(&user)
+	err := userCollection.FindOne(ctx, bson.D{{"email", email}}).Decode(&user)
 	if err != nil {
 		if err == mongo.ErrNoDocuments {
-			return AuthPayload{}, errors.New("wrong email or password")
+			return User{}, errors.New("wrong email or password")
 		}
 		log.Println(err)
-		return AuthPayload{}, InternalServerError
+		return User{}, InternalServerError
 	}
 
-	if err := util.CheckPassword(args.Password, user.Password); err != nil {
-		log.Println(err)
-		return AuthPayload{}, errors.New("wrong email or password is wrong")
-	}
-
-	newToken, err := token.CreateToken(user.ID, time.Hour*8)
-	if err != nil {
-		return AuthPayload{}, err
-	}
-
-	return AuthPayload{Token: newToken, User: user}, nil
+	return user, nil
 }
 
 func (r Repository) GetUser(ctx context.Context, id primitive.ObjectID) (User, error) {
