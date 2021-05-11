@@ -78,7 +78,6 @@ func (r Repository) ListTweet(ctx context.Context, limit int, page int) ([]Tweet
 }
 
 func (r Repository) DeleteTweet(ctx context.Context, id primitive.ObjectID) error {
-
 	tweetCollection := r.db.Collection("tweet")
 
 	result, err := tweetCollection.DeleteOne(ctx, bson.D{{"_id", id}})
