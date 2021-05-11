@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"github.com/nebisin/gograph/token"
 	"github.com/nebisin/gograph/util"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
@@ -61,7 +62,12 @@ func (r Repository) CreateUser(ctx context.Context, args RegisterParams) (AuthPa
 		UpdatedAt:   timestamp,
 	}
 
-	return AuthPayload{"", newUser}, nil
+	newToken, err := token.CreateToken(args.Email, time.Hour*8)
+	if err != nil {
+		return AuthPayload{}, err
+	}
+
+	return AuthPayload{newToken, newUser}, nil
 }
 
 type LoginParams struct {
@@ -87,5 +93,10 @@ func (r Repository) Login(ctx context.Context, args LoginParams) (AuthPayload, e
 		return AuthPayload{}, errors.New("wrong email or password is wrong")
 	}
 
-	return AuthPayload{Token: "", User: user}, nil
+	newToken, err := token.CreateToken(args.Email, time.Hour*8)
+	if err != nil {
+		return AuthPayload{}, err
+	}
+
+	return AuthPayload{Token: newToken, User: user}, nil
 }
