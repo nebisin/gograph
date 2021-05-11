@@ -34,7 +34,7 @@ func NewPayload(email string, duration time.Duration) (*Payload, error) {
 	return &payload, nil
 }
 
-func (p Payload) Valid() error {
+func (p *Payload) Valid() error {
 	if time.Now().After(p.ExpiredAt) {
 		return ErrExpiredToken
 	}

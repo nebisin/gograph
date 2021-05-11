@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"errors"
+	"github.com/nebisin/gograph/middlewares"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -19,6 +20,11 @@ type CreateTweetParams struct {
 }
 
 func (r Repository) CreateTweet(ctx context.Context, args CreateTweetParams) (Tweet, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return Tweet{}, errors.New("you are not authorized")
+	}
+
 	tweetCollection := r.db.Collection("tweet")
 
 	timestamp := time.Now()
