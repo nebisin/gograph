@@ -66,7 +66,7 @@ func (r Repository) GetTweet(ctx context.Context, id primitive.ObjectID) (Tweet,
 func (r Repository) ListTweet(ctx context.Context, limit int, page int) ([]Tweet, error) {
 	tweetCollection := r.db.Collection("tweet")
 
-	findOptions := options.Find().SetLimit(int64(limit)).SetSkip(int64((page - 1) * limit))
+	findOptions := options.Find().SetLimit(int64(limit)).SetSkip(int64((page - 1) * limit)).SetSort(bson.D{{"created_at", -1}})
 	cursor, err := tweetCollection.Find(ctx, bson.D{}, findOptions)
 	if err != nil {
 		log.Println(err)
@@ -133,4 +133,23 @@ func (r Repository) UpdateTweet(ctx context.Context, args UpdateTweetParams) (Tw
 	tweet.Content = args.Content
 
 	return tweet, nil
+}
+
+func (r Repository) ListTweetByAuthor(ctx context.Context, authorId primitive.ObjectID, limit int, page int) ([]Tweet, error) {
+	tweetCollection := r.db.Collection("tweet")
+
+	findOptions := options.Find().SetLimit(int64(limit)).SetSkip(int64((page - 1) * limit)).SetSort(bson.D{{"created_at", -1}})
+	cursor, err := tweetCollection.Find(ctx, bson.D{{"author_id", authorId}}, findOptions)
+	if err != nil {
+		log.Println(err)
+		return nil, InternalServerError
+	}
+
+	var tweets []Tweet
+	if err := cursor.All(ctx, &tweets); err != nil {
+		log.Println(err)
+		return nil, InternalServerError
+	}
+
+	return tweets, nil
 }
