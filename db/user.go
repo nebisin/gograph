@@ -92,35 +92,60 @@ func (r Repository) GetUser(ctx context.Context, id primitive.ObjectID) (User, e
 
 type UpdateUserParams struct {
 	ID          primitive.ObjectID `json:"id" validate:"required"`
+	Email       string             `json:"email" validate:"required,email"`
+	Password    string             `json:"password" validate:"required,min=8"`
 	DisplayName string             `json:"displayName" validate:"required,alphanum"`
 }
 
 func (r Repository) UpdateUser(ctx context.Context, args UpdateUserParams) (User, error) {
-	err := r.valid.Struct(args)
+	err := r.valid.Var(args.ID, "required")
 	if err != nil {
 		return User{}, err
 	}
 
 	userCollection := r.db.Collection("user")
 
-	update := bson.D{{"$set",
-		bson.D{
-			{"display_name", args.DisplayName},
-		},
-	}}
-	result, err := userCollection.UpdateByID(ctx, args.ID, update)
-	if err != nil {
-		log.Println(err)
-		return User{}, InternalServerError
-	}
-
-	if result.ModifiedCount == 0 {
-		return User{}, errors.New("the user with id " + args.ID.Hex() + " could not found")
-	}
-
 	var user User
 	err = userCollection.FindOne(ctx, bson.D{{"_id", args.ID}}).Decode(&user)
 	if err != nil {
+		return User{}, InternalServerError
+	}
+
+	if len(args.Email) > 1 {
+		err := r.valid.Var(args.Email, "required,email")
+		if err != nil {
+			return User{}, err
+		}
+
+		user.Email = args.Email
+	}
+
+	if len(args.Password) > 1 {
+		err := r.valid.Var(args.Password, "required,min=8")
+		if err != nil {
+			return User{}, err
+		}
+
+		hashPassword, err := util.HashPassword(args.Password)
+		if err != nil {
+			return User{}, err
+		}
+
+		user.Password = hashPassword
+	}
+
+	if len(args.DisplayName) > 1 {
+		err := r.valid.Var(args.DisplayName, "required,alphanum")
+		if err != nil {
+			return User{}, err
+		}
+
+		user.DisplayName = args.DisplayName
+	}
+
+	_, err = userCollection.UpdateByID(ctx, args.ID, bson.D{{"$set", user}})
+	if err != nil {
+		log.Println(err)
 		return User{}, InternalServerError
 	}
 

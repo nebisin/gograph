@@ -83,6 +83,8 @@ func TestRepository_UpdateUser(t *testing.T) {
 	params := UpdateUserParams{
 		ID: user1.ID,
 		DisplayName: util.RandomDisplayName(),
+		Email: util.RandomEmail(),
+		Password: util.RandomPassword(),
 	}
 
 	user2, err := testRepository.UpdateUser(ctx, params)
@@ -90,8 +92,10 @@ func TestRepository_UpdateUser(t *testing.T) {
 	require.NotEmpty(t, user2)
 
 	require.Equal(t, user1.ID, user2.ID)
-	require.Equal(t, user1.Password, user2.Password)
-	require.Equal(t, user2.Email, user1.Email)
+	require.Equal(t, user2.Email, params.Email)
 	require.Equal(t, user2.DisplayName, params.DisplayName)
 	require.WithinDuration(t, user1.CreatedAt, user2.CreatedAt, time.Second)
+
+	err = util.CheckPassword(params.Password, user2.Password)
+	require.NoError(t, err)
 }
