@@ -119,6 +119,34 @@ func (r *mutationResolver) Login(ctx context.Context, email string, password str
 	}, nil
 }
 
+func (r *mutationResolver) DeleteMe(ctx context.Context) (bool, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return false, errors.New("you are not authorized")
+	}
+
+	err := r.Repository.DeleteUser(ctx, payload.UserID)
+	if err != nil {
+		return false, err
+	}
+
+	return true, nil
+}
+
+func (r *mutationResolver) UpdateMe(ctx context.Context, input db.UpdateUserParams) (*db.User, error) {
+	payload := middlewares.AuthContext(ctx)
+	if payload == nil {
+		return nil, errors.New("you are not authorized")
+	}
+
+	user, err := r.Repository.UpdateUser(ctx, payload.UserID, input)
+	if err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+}
+
 // Mutation returns generated.MutationResolver implementation.
 func (r *Resolver) Mutation() generated.MutationResolver { return &mutationResolver{r} }
 

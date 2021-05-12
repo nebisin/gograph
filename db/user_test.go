@@ -81,13 +81,12 @@ func TestRepository_UpdateUser(t *testing.T) {
 	defer cancel()
 
 	params := UpdateUserParams{
-		ID: user1.ID,
 		DisplayName: util.RandomDisplayName(),
 		Email: util.RandomEmail(),
 		Password: util.RandomPassword(),
 	}
 
-	user2, err := testRepository.UpdateUser(ctx, params)
+	user2, err := testRepository.UpdateUser(ctx, user1.ID, params)
 	require.NoError(t, err)
 	require.NotEmpty(t, user2)
 
@@ -98,4 +97,18 @@ func TestRepository_UpdateUser(t *testing.T) {
 
 	err = util.CheckPassword(params.Password, user2.Password)
 	require.NoError(t, err)
+}
+
+func TestRepository_DeleteUser(t *testing.T) {
+	user1 := createRandomUser(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	err := testRepository.DeleteUser(ctx, user1.ID)
+	require.NoError(t, err)
+
+	user2, err := testRepository.GetUser(ctx, user1.ID)
+	require.Error(t, err)
+	require.Empty(t, user2)
 }

@@ -91,14 +91,13 @@ func (r Repository) GetUser(ctx context.Context, id primitive.ObjectID) (User, e
 }
 
 type UpdateUserParams struct {
-	ID          primitive.ObjectID `json:"id" validate:"required"`
-	Email       string             `json:"email" validate:"required,email"`
-	Password    string             `json:"password" validate:"required,min=8"`
-	DisplayName string             `json:"displayName" validate:"required,alphanum"`
+	Email       string             `json:"email"`
+	Password    string             `json:"password"`
+	DisplayName string             `json:"displayName"`
 }
 
-func (r Repository) UpdateUser(ctx context.Context, args UpdateUserParams) (User, error) {
-	err := r.valid.Var(args.ID, "required")
+func (r Repository) UpdateUser(ctx context.Context, id primitive.ObjectID, args UpdateUserParams) (User, error) {
+	err := r.valid.Var(id, "required")
 	if err != nil {
 		return User{}, err
 	}
@@ -106,7 +105,7 @@ func (r Repository) UpdateUser(ctx context.Context, args UpdateUserParams) (User
 	userCollection := r.db.Collection("user")
 
 	var user User
-	err = userCollection.FindOne(ctx, bson.D{{"_id", args.ID}}).Decode(&user)
+	err = userCollection.FindOne(ctx, bson.D{{"_id", id}}).Decode(&user)
 	if err != nil {
 		return User{}, InternalServerError
 	}
@@ -115,6 +114,15 @@ func (r Repository) UpdateUser(ctx context.Context, args UpdateUserParams) (User
 		err := r.valid.Var(args.Email, "required,email")
 		if err != nil {
 			return User{}, err
+		}
+
+		err = userCollection.FindOne(ctx, bson.D{{"email", args.Email}}).Err()
+		if err != mongo.ErrNoDocuments {
+			if err == nil {
+				return User{}, errors.New("email address is already taken: " + args.Email)
+			}
+			log.Println(err)
+			return User{}, InternalServerError
 		}
 
 		user.Email = args.Email
@@ -143,11 +151,26 @@ func (r Repository) UpdateUser(ctx context.Context, args UpdateUserParams) (User
 		user.DisplayName = args.DisplayName
 	}
 
-	_, err = userCollection.UpdateByID(ctx, args.ID, bson.D{{"$set", user}})
+	_, err = userCollection.UpdateByID(ctx, id, bson.D{{"$set", user}})
 	if err != nil {
 		log.Println(err)
 		return User{}, InternalServerError
 	}
 
 	return user, nil
+}
+
+func (r Repository) DeleteUser(ctx context.Context, id primitive.ObjectID) error {
+	userCollection := r.db.Collection("user")
+
+	err := userCollection.FindOneAndDelete(ctx, bson.D{{"_id", id}}).Err()
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return errors.New("the user with id " + id.Hex() + " could not found")
+		}
+		log.Println(err)
+		return InternalServerError
+	}
+
+	return nil
 }
