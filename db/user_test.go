@@ -73,3 +73,25 @@ func TestRepository_GetUserByEmail(t *testing.T) {
 	require.WithinDuration(t, user2.CreatedAt, user1.CreatedAt, time.Second)
 	require.WithinDuration(t, user2.UpdatedAt, user1.UpdatedAt, time.Second)
 }
+
+func TestRepository_UpdateUser(t *testing.T) {
+	user1 := createRandomUser(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	params := UpdateUserParams{
+		ID: user1.ID,
+		DisplayName: util.RandomDisplayName(),
+	}
+
+	user2, err := testRepository.UpdateUser(ctx, params)
+	require.NoError(t, err)
+	require.NotEmpty(t, user2)
+
+	require.Equal(t, user1.ID, user2.ID)
+	require.Equal(t, user1.Password, user2.Password)
+	require.Equal(t, user2.Email, user1.Email)
+	require.Equal(t, user2.DisplayName, params.DisplayName)
+	require.WithinDuration(t, user1.CreatedAt, user2.CreatedAt, time.Second)
+}

@@ -89,3 +89,40 @@ func (r Repository) GetUser(ctx context.Context, id primitive.ObjectID) (User, e
 
 	return user, nil
 }
+
+type UpdateUserParams struct {
+	ID          primitive.ObjectID `json:"id" validate:"required"`
+	DisplayName string             `json:"displayName" validate:"required,alphanum"`
+}
+
+func (r Repository) UpdateUser(ctx context.Context, args UpdateUserParams) (User, error) {
+	err := r.valid.Struct(args)
+	if err != nil {
+		return User{}, err
+	}
+
+	userCollection := r.db.Collection("user")
+
+	update := bson.D{{"$set",
+		bson.D{
+			{"display_name", args.DisplayName},
+		},
+	}}
+	result, err := userCollection.UpdateByID(ctx, args.ID, update)
+	if err != nil {
+		log.Println(err)
+		return User{}, InternalServerError
+	}
+
+	if result.ModifiedCount == 0 {
+		return User{}, errors.New("the user with id " + args.ID.Hex() + " could not found")
+	}
+
+	var user User
+	err = userCollection.FindOne(ctx, bson.D{{"_id", args.ID}}).Decode(&user)
+	if err != nil {
+		return User{}, InternalServerError
+	}
+
+	return user, nil
+}
