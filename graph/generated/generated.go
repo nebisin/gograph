@@ -55,9 +55,11 @@ type ComplexityRoot struct {
 
 	Mutation struct {
 		CreateTweet func(childComplexity int, content string) int
+		DeleteMe    func(childComplexity int) int
 		DeleteTweet func(childComplexity int, id primitive.ObjectID) int
 		Login       func(childComplexity int, email string, password string) int
 		Register    func(childComplexity int, input db.RegisterParams) int
+		UpdateMe    func(childComplexity int, input db.UpdateUserParams) int
 		UpdateTweet func(childComplexity int, input db.UpdateTweetParams) int
 	}
 
@@ -93,6 +95,8 @@ type MutationResolver interface {
 	DeleteTweet(ctx context.Context, id primitive.ObjectID) (bool, error)
 	Register(ctx context.Context, input db.RegisterParams) (*model.AuthPayload, error)
 	Login(ctx context.Context, email string, password string) (*model.AuthPayload, error)
+	DeleteMe(ctx context.Context) (bool, error)
+	UpdateMe(ctx context.Context, input db.UpdateUserParams) (*db.User, error)
 }
 type QueryResolver interface {
 	GetTweet(ctx context.Context, id primitive.ObjectID) (*db.Tweet, error)
@@ -148,6 +152,13 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 
 		return e.complexity.Mutation.CreateTweet(childComplexity, args["content"].(string)), true
 
+	case "Mutation.deleteMe":
+		if e.complexity.Mutation.DeleteMe == nil {
+			break
+		}
+
+		return e.complexity.Mutation.DeleteMe(childComplexity), true
+
 	case "Mutation.deleteTweet":
 		if e.complexity.Mutation.DeleteTweet == nil {
 			break
@@ -183,6 +194,18 @@ func (e *executableSchema) Complexity(typeName, field string, childComplexity in
 		}
 
 		return e.complexity.Mutation.Register(childComplexity, args["input"].(db.RegisterParams)), true
+
+	case "Mutation.updateMe":
+		if e.complexity.Mutation.UpdateMe == nil {
+			break
+		}
+
+		args, err := ec.field_Mutation_updateMe_args(context.TODO(), rawArgs)
+		if err != nil {
+			return 0, false
+		}
+
+		return e.complexity.Mutation.UpdateMe(childComplexity, args["input"].(db.UpdateUserParams)), true
 
 	case "Mutation.updateTweet":
 		if e.complexity.Mutation.UpdateTweet == nil {
@@ -398,6 +421,14 @@ var sources = []*ast.Source{
     deleteTweet(id: ID!): Boolean!
     register(input: RegisterParams!): AuthPayload!
     login(email: String!, password: String!): AuthPayload!
+    deleteMe: Boolean!
+    updateMe(input: UpdateUserParams!): User!
+}
+
+input UpdateUserParams @goModel(model: "github.com/nebisin/gograph/db.UpdateUserParams")  {
+    email: String
+    password: String
+    displayName: String
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {
@@ -518,6 +549,21 @@ func (ec *executionContext) field_Mutation_register_args(ctx context.Context, ra
 	if tmp, ok := rawArgs["input"]; ok {
 		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
 		arg0, err = ec.unmarshalNRegisterParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐRegisterParams(ctx, tmp)
+		if err != nil {
+			return nil, err
+		}
+	}
+	args["input"] = arg0
+	return args, nil
+}
+
+func (ec *executionContext) field_Mutation_updateMe_args(ctx context.Context, rawArgs map[string]interface{}) (map[string]interface{}, error) {
+	var err error
+	args := map[string]interface{}{}
+	var arg0 db.UpdateUserParams
+	if tmp, ok := rawArgs["input"]; ok {
+		ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("input"))
+		arg0, err = ec.unmarshalNUpdateUserParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐUpdateUserParams(ctx, tmp)
 		if err != nil {
 			return nil, err
 		}
@@ -950,6 +996,83 @@ func (ec *executionContext) _Mutation_login(ctx context.Context, field graphql.C
 	res := resTmp.(*model.AuthPayload)
 	fc.Result = res
 	return ec.marshalNAuthPayload2ᚖgithubᚗcomᚋnebisinᚋgographᚋgraphᚋmodelᚐAuthPayload(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_deleteMe(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().DeleteMe(rctx)
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(bool)
+	fc.Result = res
+	return ec.marshalNBoolean2bool(ctx, field.Selections, res)
+}
+
+func (ec *executionContext) _Mutation_updateMe(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
+	defer func() {
+		if r := recover(); r != nil {
+			ec.Error(ctx, ec.Recover(ctx, r))
+			ret = graphql.Null
+		}
+	}()
+	fc := &graphql.FieldContext{
+		Object:     "Mutation",
+		Field:      field,
+		Args:       nil,
+		IsMethod:   true,
+		IsResolver: true,
+	}
+
+	ctx = graphql.WithFieldContext(ctx, fc)
+	rawArgs := field.ArgumentMap(ec.Variables)
+	args, err := ec.field_Mutation_updateMe_args(ctx, rawArgs)
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	fc.Args = args
+	resTmp, err := ec.ResolverMiddleware(ctx, func(rctx context.Context) (interface{}, error) {
+		ctx = rctx // use context from middleware stack in children
+		return ec.resolvers.Mutation().UpdateMe(rctx, args["input"].(db.UpdateUserParams))
+	})
+	if err != nil {
+		ec.Error(ctx, err)
+		return graphql.Null
+	}
+	if resTmp == nil {
+		if !graphql.HasFieldError(ctx, fc) {
+			ec.Errorf(ctx, "must not be null")
+		}
+		return graphql.Null
+	}
+	res := resTmp.(*db.User)
+	fc.Result = res
+	return ec.marshalNUser2ᚖgithubᚗcomᚋnebisinᚋgographᚋdbᚐUser(ctx, field.Selections, res)
 }
 
 func (ec *executionContext) _Query_getTweet(ctx context.Context, field graphql.CollectedField) (ret graphql.Marshaler) {
@@ -2759,6 +2882,42 @@ func (ec *executionContext) unmarshalInputUpdateTweetParams(ctx context.Context,
 	return it, nil
 }
 
+func (ec *executionContext) unmarshalInputUpdateUserParams(ctx context.Context, obj interface{}) (db.UpdateUserParams, error) {
+	var it db.UpdateUserParams
+	var asMap = obj.(map[string]interface{})
+
+	for k, v := range asMap {
+		switch k {
+		case "email":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("email"))
+			it.Email, err = ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "password":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("password"))
+			it.Password, err = ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		case "displayName":
+			var err error
+
+			ctx := graphql.WithPathContext(ctx, graphql.NewPathWithField("displayName"))
+			it.DisplayName, err = ec.unmarshalOString2string(ctx, v)
+			if err != nil {
+				return it, err
+			}
+		}
+	}
+
+	return it, nil
+}
+
 // endregion **************************** input.gotpl *****************************
 
 // region    ************************** interface.gotpl ***************************
@@ -2836,6 +2995,16 @@ func (ec *executionContext) _Mutation(ctx context.Context, sel ast.SelectionSet)
 			}
 		case "login":
 			out.Values[i] = ec._Mutation_login(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "deleteMe":
+			out.Values[i] = ec._Mutation_deleteMe(ctx, field)
+			if out.Values[i] == graphql.Null {
+				invalids++
+			}
+		case "updateMe":
+			out.Values[i] = ec._Mutation_updateMe(ctx, field)
 			if out.Values[i] == graphql.Null {
 				invalids++
 			}
@@ -3432,6 +3601,11 @@ func (ec *executionContext) marshalNTweet2ᚖgithubᚗcomᚋnebisinᚋgographᚋ
 
 func (ec *executionContext) unmarshalNUpdateTweetParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐUpdateTweetParams(ctx context.Context, v interface{}) (db.UpdateTweetParams, error) {
 	res, err := ec.unmarshalInputUpdateTweetParams(ctx, v)
+	return res, graphql.ErrorOnPath(ctx, err)
+}
+
+func (ec *executionContext) unmarshalNUpdateUserParams2githubᚗcomᚋnebisinᚋgographᚋdbᚐUpdateUserParams(ctx context.Context, v interface{}) (db.UpdateUserParams, error) {
+	res, err := ec.unmarshalInputUpdateUserParams(ctx, v)
 	return res, graphql.ErrorOnPath(ctx, err)
 }
 

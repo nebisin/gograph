@@ -4,6 +4,14 @@ type Mutation {
     deleteTweet(id: ID!): Boolean!
     register(input: RegisterParams!): AuthPayload!
     login(email: String!, password: String!): AuthPayload!
+    deleteMe: Boolean!
+    updateMe(input: UpdateUserParams!): User!
+}
+
+input UpdateUserParams @goModel(model: "github.com/nebisin/gograph/db.UpdateUserParams")  {
+    email: String
+    password: String
+    displayName: String
 }
 
 input UpdateTweetParams @goModel(model: "github.com/nebisin/gograph/db.UpdateTweetParams") {

@@ -6,10 +6,10 @@ package resolver
 import (
 	"context"
 	"errors"
-	"github.com/nebisin/gograph/middlewares"
 
 	"github.com/nebisin/gograph/db"
 	"github.com/nebisin/gograph/graph/generated"
+	"github.com/nebisin/gograph/middlewares"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 

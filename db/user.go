@@ -89,3 +89,88 @@ func (r Repository) GetUser(ctx context.Context, id primitive.ObjectID) (User, e
 
 	return user, nil
 }
+
+type UpdateUserParams struct {
+	Email       string             `json:"email"`
+	Password    string             `json:"password"`
+	DisplayName string             `json:"displayName"`
+}
+
+func (r Repository) UpdateUser(ctx context.Context, id primitive.ObjectID, args UpdateUserParams) (User, error) {
+	err := r.valid.Var(id, "required")
+	if err != nil {
+		return User{}, err
+	}
+
+	userCollection := r.db.Collection("user")
+
+	var user User
+	err = userCollection.FindOne(ctx, bson.D{{"_id", id}}).Decode(&user)
+	if err != nil {
+		return User{}, InternalServerError
+	}
+
+	if len(args.Email) > 1 {
+		err := r.valid.Var(args.Email, "required,email")
+		if err != nil {
+			return User{}, err
+		}
+
+		err = userCollection.FindOne(ctx, bson.D{{"email", args.Email}}).Err()
+		if err != mongo.ErrNoDocuments {
+			if err == nil {
+				return User{}, errors.New("email address is already taken: " + args.Email)
+			}
+			log.Println(err)
+			return User{}, InternalServerError
+		}
+
+		user.Email = args.Email
+	}
+
+	if len(args.Password) > 1 {
+		err := r.valid.Var(args.Password, "required,min=8")
+		if err != nil {
+			return User{}, err
+		}
+
+		hashPassword, err := util.HashPassword(args.Password)
+		if err != nil {
+			return User{}, err
+		}
+
+		user.Password = hashPassword
+	}
+
+	if len(args.DisplayName) > 1 {
+		err := r.valid.Var(args.DisplayName, "required,alphanum")
+		if err != nil {
+			return User{}, err
+		}
+
+		user.DisplayName = args.DisplayName
+	}
+
+	_, err = userCollection.UpdateByID(ctx, id, bson.D{{"$set", user}})
+	if err != nil {
+		log.Println(err)
+		return User{}, InternalServerError
+	}
+
+	return user, nil
+}
+
+func (r Repository) DeleteUser(ctx context.Context, id primitive.ObjectID) error {
+	userCollection := r.db.Collection("user")
+
+	err := userCollection.FindOneAndDelete(ctx, bson.D{{"_id", id}}).Err()
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return errors.New("the user with id " + id.Hex() + " could not found")
+		}
+		log.Println(err)
+		return InternalServerError
+	}
+
+	return nil
+}
