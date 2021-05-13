@@ -35,14 +35,12 @@ func createRandomUser(t *testing.T) User {
 }
 
 func TestRepository_CreateUser(t *testing.T) {
-	t.Run("create random user", func(t *testing.T) {
-		createRandomUser(t)
-	})
+	user := createRandomUser(t)
 
-	t.Run("create a user with invalid email", func(t *testing.T) {
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
 
+	t.Run("with invalid email", func(t *testing.T) {
 		args := RegisterParams{
 			Email:       "someinvalidemail.com",
 			Password:    util.RandomPassword(),
@@ -54,12 +52,7 @@ func TestRepository_CreateUser(t *testing.T) {
 		require.Empty(t, user)
 	})
 
-	t.Run("test taken email", func(t *testing.T) {
-		user := createRandomUser(t)
-
-		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-
+	t.Run("with taken email", func(t *testing.T) {
 		args := RegisterParams{
 			Email:       user.Email,
 			Password:    util.RandomPassword(),
@@ -78,7 +71,7 @@ func TestRepository_GetUser(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	t.Run("test valid id", func(t *testing.T) {
+	t.Run("with valid id", func(t *testing.T) {
 		user2, err := testRepository.GetUser(ctx, user1.ID)
 		require.NoError(t, err)
 		require.NotEmpty(t, user2)
@@ -92,7 +85,7 @@ func TestRepository_GetUser(t *testing.T) {
 		require.WithinDuration(t, user2.UpdatedAt, user1.UpdatedAt, time.Second)
 	})
 
-	t.Run("test not existed id", func(t *testing.T) {
+	t.Run("with not existed id", func(t *testing.T) {
 		user2, err := testRepository.GetUser(ctx, primitive.NewObjectID())
 		require.Error(t, err)
 		require.Empty(t, user2)
@@ -106,7 +99,7 @@ func TestRepository_GetUserByEmail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	t.Run("test existed email", func(t *testing.T) {
+	t.Run("with existed email", func(t *testing.T) {
 		user2, err := testRepository.GetUserByEmail(ctx, user1.Email)
 		require.NoError(t, err)
 		require.NotEmpty(t, user2)
@@ -119,7 +112,7 @@ func TestRepository_GetUserByEmail(t *testing.T) {
 		require.WithinDuration(t, user2.UpdatedAt, user1.UpdatedAt, time.Second)
 	})
 
-	t.Run("test not existed email", func(t *testing.T) {
+	t.Run("with not existed email", func(t *testing.T) {
 		user2, err := testRepository.GetUserByEmail(ctx, util.RandomEmail())
 		require.Error(t, err)
 		require.Empty(t, user2)
@@ -133,7 +126,7 @@ func TestRepository_UpdateUser(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	t.Run("update with solid params", func(t *testing.T) {
+	t.Run("with solid params", func(t *testing.T) {
 		params := UpdateUserParams{
 			DisplayName: util.RandomDisplayName(),
 			Email: util.RandomEmail(),
@@ -153,9 +146,41 @@ func TestRepository_UpdateUser(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("update with invalid password", func(t *testing.T) {
+	t.Run("with invalid password", func(t *testing.T) {
 		params := UpdateUserParams{
 			Password: "123",
+		}
+
+		user2, err := testRepository.UpdateUser(ctx, user1.ID, params)
+		require.Error(t, err)
+		require.Empty(t, user2)
+	})
+
+	t.Run("with invalid email", func(t *testing.T) {
+		params := UpdateUserParams{
+			Email: "invalidemail.com",
+		}
+
+		user2, err := testRepository.UpdateUser(ctx, user1.ID, params)
+		require.Error(t, err)
+		require.Empty(t, user2)
+	})
+
+	t.Run("with taken email", func(t *testing.T) {
+		user3 := createRandomUser(t)
+
+		params := UpdateUserParams{
+			Email: user3.Email,
+		}
+
+		user2, err := testRepository.UpdateUser(ctx, user1.ID, params)
+		require.Error(t, err)
+		require.Empty(t, user2)
+	})
+
+	t.Run("with invalid display name", func(t *testing.T) {
+		params := UpdateUserParams{
+			DisplayName: ".:.",
 		}
 
 		user2, err := testRepository.UpdateUser(ctx, user1.ID, params)
@@ -170,7 +195,7 @@ func TestRepository_DeleteUser(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	t.Run("delete an existed user", func(t *testing.T) {
+	t.Run("with existed user", func(t *testing.T) {
 		err := testRepository.DeleteUser(ctx, user1.ID)
 		require.NoError(t, err)
 
@@ -179,7 +204,7 @@ func TestRepository_DeleteUser(t *testing.T) {
 		require.Empty(t, user2)
 	})
 
-	t.Run("delete not existed user", func(t *testing.T) {
+	t.Run("with non existed user", func(t *testing.T) {
 		err := testRepository.DeleteUser(ctx, user1.ID)
 		require.Error(t, err)
 	})

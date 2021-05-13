@@ -97,15 +97,11 @@ type UpdateUserParams struct {
 }
 
 func (r Repository) UpdateUser(ctx context.Context, id primitive.ObjectID, args UpdateUserParams) (User, error) {
-	err := r.valid.Var(id, "required")
-	if err != nil {
-		return User{}, err
-	}
 
 	userCollection := r.db.Collection("user")
 
 	var user User
-	err = userCollection.FindOne(ctx, bson.D{{"_id", id}}).Decode(&user)
+	err := userCollection.FindOne(ctx, bson.D{{"_id", id}}).Decode(&user)
 	if err != nil {
 		return User{}, InternalServerError
 	}
