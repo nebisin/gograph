@@ -99,7 +99,7 @@ func TestRepository_GetUserByEmail(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	t.Run("with existed email", func(t *testing.T) {
+	t.Run("with an existed email", func(t *testing.T) {
 		user2, err := testRepository.GetUserByEmail(ctx, user1.Email)
 		require.NoError(t, err)
 		require.NotEmpty(t, user2)

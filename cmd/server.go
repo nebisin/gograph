@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"context"
-	"fmt"
 	"github.com/99designs/gqlgen/graphql/handler"
 	"github.com/99designs/gqlgen/graphql/handler/extension"
 	"github.com/99designs/gqlgen/graphql/playground"
@@ -88,11 +87,12 @@ func initServerConfig(database *mongo.Database) generated.Config {
 }
 
 func initDatabase(ctx context.Context) (*mongo.Client, *mongo.Database) {
-	dbUsername := os.Getenv("DB_USERNAME")
-	dbPassword := os.Getenv("DB_PASSWORD")
-	dbPort := os.Getenv("DB_PORT")
-	dbHost := os.Getenv("DB_HOST")
-	dbURI := fmt.Sprintf("mongodb://%s:%s@%s:%s", dbUsername, dbPassword, dbHost, dbPort)
+	//dbUsername := os.Getenv("DB_USERNAME")
+	//dbPassword := os.Getenv("DB_PASSWORD")
+	//dbPort := os.Getenv("DB_PORT")
+	//dbHost := os.Getenv("DB_HOST")
+	//dbURI := fmt.Sprintf("mongodb://%s:%s@%s:%s", dbUsername, dbPassword, dbHost, dbPort)
+	dbURI := os.Getenv("DB_URI")
 
 	client, err := mongo.Connect(ctx, options.Client().ApplyURI(dbURI))
 	if err != nil {
